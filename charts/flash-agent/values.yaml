@@ -93,6 +93,8 @@ agent:
       key: CHAOS_NAMESPACE
     - name: TARGET_APP_NAME
       key: TARGET_APP_NAME
+    - name: MCP_INCLUDE_CHAOS_TOOLS
+      key: MCP_INCLUDE_CHAOS_TOOLS
     # Experiment context (populated by install-agent --set from Argo template variables)
     - name: NOTIFY_ID
       key: NOTIFY_ID
