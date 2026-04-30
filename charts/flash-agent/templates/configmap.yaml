@@ -8,21 +8,24 @@ metadata:
     agentcert.io/version: {{ .Values.agent.version | quote }}
   annotations:
     agentcert.io/vendor: {{ .Values.agent.vendor | quote }}
-    agentcert.io/mode: {{ .Values.agent.mode | quote }}
-    agentcert.io/scope: {{ .Values.agent.scope | quote }}
-    agentcert.io/capabilities: {{ .Values.agent.capabilities | join "," | quote }}
-    agentcert.io/project-id: {{ .Values.app.chaosCenter.projectId | quote }}
 data:
-  agent-metadata.json: |
-    {
-      "name": "{{ .Values.agent.name }}",
-      "version": "{{ .Values.agent.version }}",
-      "vendor": "{{ .Values.agent.vendor }}",
-      "mode": "{{ .Values.agent.mode }}",
-      "scope": "{{ .Values.agent.scope }}",
-      "capabilities": {{ .Values.agent.capabilities | toJson }},
-      "supportedExperiments": {{ .Values.agent.supportedExperiments | toJson }}
-    }
-{{- range $key, $value := .Values.agent.config }}
-  {{ $key }}: {{ $value | toString | quote }}
-{{- end }}
+  # LLM Configuration
+  OPENAI_BASE_URL: {{ .Values.agent.config.OPENAI_BASE_URL | quote }}
+  MODEL_ALIAS: {{ .Values.agent.config.MODEL_ALIAS | quote }}
+  {{- if .Values.agent.config.AZURE_API_VERSION }}
+  AZURE_API_VERSION: {{ .Values.agent.config.AZURE_API_VERSION | quote }}
+  {{- end }}
+
+  # MCP Configuration
+  MCP_URLS: {{ .Values.agent.config.MCP_URLS | quote }}
+  {{- if .Values.agent.config.MCP_TIMEOUT }}
+  MCP_TIMEOUT: {{ .Values.agent.config.MCP_TIMEOUT | quote }}
+  {{- end }}
+
+  # Scan Configuration
+  {{- if .Values.agent.config.SCAN_INTERVAL }}
+  SCAN_INTERVAL: {{ .Values.agent.config.SCAN_INTERVAL | quote }}
+  {{- end }}
+  {{- if .Values.agent.config.SCAN_QUERY }}
+  SCAN_QUERY: {{ .Values.agent.config.SCAN_QUERY | quote }}
+  {{- end }}

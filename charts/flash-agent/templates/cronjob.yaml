@@ -20,86 +20,63 @@ spec:
           containers:
           - name: agent
             image: "{{ .Values.agent.containerImage.registry }}/{{ .Values.agent.containerImage.repository }}:{{ .Values.agent.containerImage.tag }}"
-            imagePullPolicy: Always
+            imagePullPolicy: {{ .Values.agent.containerImage.pullPolicy | default "Always" }}
 
             resources:
               {{- toYaml .Values.resources | nindent 14 }}
 
             env:
-              # ChaosCenter connection
-              - name: CHAOS_CENTER_ENDPOINT
-                value: {{ .Values.app.chaosCenter.endpoint | quote }}
-
-              - name: CHAOS_PROJECT_ID
-                value: {{ .Values.app.chaosCenter.projectId | quote }}
-
-              - name: CHAOS_CLUSTER_ID
-                value: {{ .Values.app.chaosCenter.clusterId | quote }}
-
               # Agent identity
               - name: AGENT_NAME
                 value: {{ .Values.agent.name | quote }}
 
-              - name: AGENT_MODE
-                value: {{ .Values.agent.mode | quote }}
-
-              - name: AGENT_SCOPE
-                value: {{ .Values.agent.scope | quote }}
-
-              # Infra dependencies
-              - name: MONGO_URI
-                value: {{ .Values.env.mongoUri | quote }}
-
-              # LiteLLM Proxy Configuration
-              - name: LITELLM_URL
+              # LLM Configuration (required)
+              - name: OPENAI_BASE_URL
                 valueFrom:
                   configMapKeyRef:
                     name: {{ .Values.agent.name }}-metadata
-                    key: LITELLM_URL
-              
-              - name: LITELLM_MASTER_KEY
+                    key: OPENAI_BASE_URL
+
+              - name: OPENAI_API_KEY
                 valueFrom:
                   secretKeyRef:
                     name: {{ .Values.agent.name }}-secret
-                    key: LITELLM_MASTER_KEY
-              
+                    key: OPENAI_API_KEY
+                    optional: true
+
               - name: MODEL_ALIAS
                 valueFrom:
                   configMapKeyRef:
                     name: {{ .Values.agent.name }}-metadata
                     key: MODEL_ALIAS
-              
-              # NOTE: OTEL and Langfuse env vars removed — LiteLLM proxy
-              # handles all Langfuse tracing via success_callback.
 
-  {{- range $env := .Values.agent.deploymentEnv }}
-  {{- if and $.Values.sidecar.enabled (eq $env.name "OPENAI_BASE_URL") }}
-  {{- /* Skip — sidecar override below takes precedence */ -}}
-  {{- else }}
-              - name: {{ $env.name }}
-                valueFrom:
-                  configMapKeyRef:
-                    name: {{ $.Values.agent.name }}-metadata
-                    key: {{ $env.key }}
-  {{- end }}
-  {{- end }}
-
-  {{- if .Values.sidecar.enabled }}
-              # Override OPENAI_BASE_URL to route through agent-sidecar
-              - name: OPENAI_BASE_URL
-                value: "http://localhost:{{ .Values.sidecar.port }}/v1"
-  {{- end }}
-
-              # MCP interactions log
-              {{- if .Values.agent.mcpInteractionsFile }}
-              - name: MCP_INTERACTIONS_FILE
-                value: {{ .Values.agent.mcpInteractionsFile | quote }}
+              {{- if .Values.agent.config.AZURE_API_VERSION }}
+              - name: AZURE_API_VERSION
+                value: {{ .Values.agent.config.AZURE_API_VERSION | quote }}
               {{- end }}
 
-            volumeMounts:
-              - name: agent-metadata
-                mountPath: /etc/agent/metadata
-                readOnly: true
+              # MCP Configuration (required)
+              - name: MCP_URLS
+                valueFrom:
+                  configMapKeyRef:
+                    name: {{ .Values.agent.name }}-metadata
+                    key: MCP_URLS
+
+              {{- if .Values.agent.config.MCP_TIMEOUT }}
+              - name: MCP_TIMEOUT
+                value: {{ .Values.agent.config.MCP_TIMEOUT | quote }}
+              {{- end }}
+
+              # Scan Configuration
+              {{- if .Values.agent.config.SCAN_INTERVAL }}
+              - name: SCAN_INTERVAL
+                value: {{ .Values.agent.config.SCAN_INTERVAL | quote }}
+              {{- end }}
+
+              {{- if .Values.agent.config.SCAN_QUERY }}
+              - name: SCAN_QUERY
+                value: {{ .Values.agent.config.SCAN_QUERY | quote }}
+              {{- end }}
 
   {{- if .Values.sidecar.enabled }}
           # ── agent-sidecar: transparent metadata-injection proxy ──────
@@ -114,35 +91,6 @@ spec:
                 value: {{ .Values.sidecar.port | quote }}
               - name: UPSTREAM_URL
                 value: {{ .Values.sidecar.upstream | quote }}
-              - name: NOTIFY_ID
-                valueFrom:
-                  configMapKeyRef:
-                    name: {{ .Values.agent.name }}-metadata
-                    key: NOTIFY_ID
-              - name: EXPERIMENT_ID
-                valueFrom:
-                  configMapKeyRef:
-                    name: {{ .Values.agent.name }}-metadata
-                    key: EXPERIMENT_ID
-              - name: EXPERIMENT_RUN_ID
-                valueFrom:
-                  configMapKeyRef:
-                    name: {{ .Values.agent.name }}-metadata
-                    key: EXPERIMENT_RUN_ID
-              - name: WORKFLOW_NAME
-                valueFrom:
-                  configMapKeyRef:
-                    name: {{ .Values.agent.name }}-metadata
-                    key: WORKFLOW_NAME
-            volumeMounts:
-              - name: agent-metadata
-                mountPath: /etc/agent/metadata
-                readOnly: true
             resources:
               {{- toYaml .Values.sidecar.resources | nindent 14 }}
   {{- end }}
-
-          volumes:
-            - name: agent-metadata
-              configMap:
-                name: {{ .Values.agent.name }}-metadata
