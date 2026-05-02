@@ -10,7 +10,7 @@ agent:
     registry: docker.io
     repository: agentcert/flash-agent
     tag: latest
-    pullPolicy: OnlyIfNotPresent
+    pullPolicy: IfNotPresent
 
   config:
     # --- LLM Configuration (required) ---

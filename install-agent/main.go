@@ -53,6 +53,24 @@ func (s *setFlags) Set(val string) error {
 	return nil
 }
 
+// escapeHelmSetValue escapes special characters in the VALUE portion of a
+// Helm --set argument. Helm interprets colons as nested key separators and
+// commas as key-value separators, so URLs like "http://foo:8080/mcp" must
+// have these characters escaped. Only the value (after the first '=') is escaped.
+func escapeHelmSetValue(setArg string) string {
+	idx := strings.Index(setArg, "=")
+	if idx < 0 {
+		return setArg // no value part, return as-is
+	}
+	key := setArg[:idx+1] // includes the '='
+	val := setArg[idx+1:]
+	// Escape backslashes first, then commas and colons
+	val = strings.ReplaceAll(val, `\`, `\\`)
+	val = strings.ReplaceAll(val, `,`, `\,`)
+	val = strings.ReplaceAll(val, `:`, `\:`)
+	return key + val
+}
+
 func main() {
 	config := parseFlags()
 
@@ -187,7 +205,7 @@ func installChart(config *Config) error {
 	}
 
 	for _, setValue := range config.SetValues {
-		args = append(args, "--set", setValue)
+		args = append(args, "--set", escapeHelmSetValue(setValue))
 	}
 
 	if config.DryRun {
@@ -338,7 +356,7 @@ func adoptExistingResources(config *Config) error {
 	}
 
 	for _, setValue := range config.SetValues {
-		args = append(args, "--set", setValue)
+		args = append(args, "--set", escapeHelmSetValue(setValue))
 	}
 
 	log.Printf("Discovering chart resources via: helm %s", strings.Join(args, " "))
