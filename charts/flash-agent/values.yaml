@@ -5,6 +5,10 @@ agent:
   name: flash-agent
   version: "1.0.0"
   vendor: "AgentCert"
+  # Agent metadata for sidecar tracing (set by experiment workflow)
+  id: ""          # Unique agent instance ID (set by helmUpgradeWithAgentID)
+  role: "observer"  # Agent role: observer, remediation, etc.
+  notifyId: ""    # Experiment notification ID (becomes trace_id in Langfuse)
 
   containerImage:
     registry: docker.io

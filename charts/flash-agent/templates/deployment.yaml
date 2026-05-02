@@ -87,6 +87,16 @@ spec:
               value: {{ .Values.sidecar.port | quote }}
             - name: UPSTREAM_URL
               value: {{ .Values.sidecar.upstream | quote }}
+            - name: CONFIG_MOUNT
+              value: "/etc/agent/metadata"
+          volumeMounts:
+            - name: agent-metadata
+              mountPath: /etc/agent/metadata
+              readOnly: true
           resources:
             {{- toYaml .Values.sidecar.resources | nindent 12 }}
 {{- end }}
+      volumes:
+        - name: agent-metadata
+          configMap:
+            name: {{ .Values.agent.name }}-metadata
