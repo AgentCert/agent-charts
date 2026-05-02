@@ -10,7 +10,12 @@ metadata:
     agentcert.io/vendor: {{ .Values.agent.vendor | quote }}
 data:
   # LLM Configuration
+  # When sidecar is enabled, route through sidecar for metadata injection
+  {{- if .Values.sidecar.enabled }}
+  OPENAI_BASE_URL: "http://localhost:{{ .Values.sidecar.port }}/v1"
+  {{- else }}
   OPENAI_BASE_URL: {{ .Values.agent.config.OPENAI_BASE_URL | quote }}
+  {{- end }}
   MODEL_ALIAS: {{ .Values.agent.config.MODEL_ALIAS | quote }}
   {{- if .Values.agent.config.AZURE_API_VERSION }}
   AZURE_API_VERSION: {{ .Values.agent.config.AZURE_API_VERSION | quote }}
