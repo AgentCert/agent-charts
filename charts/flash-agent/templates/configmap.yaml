@@ -14,7 +14,12 @@ data:
   AGENT_ID: {{ .Values.agent.id | default "" | quote }}
   AGENT_ROLE: {{ .Values.agent.role | default "observer" | quote }}
   AGENT_VERSION: {{ .Values.agent.version | quote }}
+  
+  # Experiment Correlation (links Langfuse traces to ChaosCenter experiments)
+  # NOTIFY_ID = workflow name (human-readable, used as Langfuse trace_id)
+  # WORKFLOW_UID = K8s-generated UUID (for unique identification if needed)
   NOTIFY_ID: {{ .Values.agent.notifyId | default "" | quote }}
+  WORKFLOW_UID: {{ .Values.agent.workflowUid | default "" | quote }}
 
   # LLM Configuration
   # When sidecar is enabled, route through sidecar for metadata injection

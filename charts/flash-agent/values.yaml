@@ -8,7 +8,8 @@ agent:
   # Agent metadata for sidecar tracing (set by experiment workflow)
   id: ""          # Unique agent instance ID (set by helmUpgradeWithAgentID)
   role: "observer"  # Agent role: observer, remediation, etc.
-  notifyId: ""    # Experiment notification ID (becomes trace_id in Langfuse)
+  notifyId: ""    # Experiment name (becomes trace_id in Langfuse for correlation)
+  workflowUid: "" # K8s workflow UID (for unique identification)
 
   containerImage:
     registry: docker.io
@@ -19,7 +20,7 @@ agent:
   config:
     # --- LLM Configuration (required) ---
     OPENAI_BASE_URL: "http://litellm-proxy.litellm.svc.cluster.local:4000/v1"
-    MODEL_ALIAS: "gpt-4o-mini"
+    MODEL_ALIAS: "gpt-4o"
     # AZURE_API_VERSION: "2025-04-01-preview"  # Only needed for Azure OpenAI
 
     # --- MCP Configuration (required) ---
