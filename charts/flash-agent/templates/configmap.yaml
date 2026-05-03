@@ -16,9 +16,12 @@ data:
   AGENT_VERSION: {{ .Values.agent.version | quote }}
   
   # Experiment Correlation (links Langfuse traces to ChaosCenter experiments)
-  # NOTIFY_ID = workflow name (human-readable, used as Langfuse trace_id)
+  # NOTIFY_ID = ChaosCenter's experiment_run_id (used as Langfuse trace_id)
+  #             Falls back to workflow name if ChaosCenter doesn't provide one
+  # WORKFLOW_NAME = Human-readable experiment name (for display/search)
   # WORKFLOW_UID = K8s-generated UUID (for unique identification if needed)
-  NOTIFY_ID: {{ .Values.agent.notifyId | default "" | quote }}
+  NOTIFY_ID: {{ .Values.agent.config.NOTIFY_ID | default .Values.agent.notifyId | default "" | quote }}
+  WORKFLOW_NAME: {{ .Values.agent.config.WORKFLOW_NAME | default .Values.agent.notifyId | default "" | quote }}
   WORKFLOW_UID: {{ .Values.agent.workflowUid | default "" | quote }}
 
   # LLM Configuration
