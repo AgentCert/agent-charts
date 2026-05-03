@@ -74,6 +74,14 @@ spec:
               value: {{ .Values.agent.config.SCAN_QUERY | quote }}
             {{- end }}
 
+            # Scope override — when set, skips MCP scope auto-discovery and
+            # forces the agent to operate within this namespace. Leave unset
+            # to auto-discover from the MCP server itself.
+            {{- if .Values.agent.config.AGENT_SCOPE_NAMESPACE }}
+            - name: AGENT_SCOPE_NAMESPACE
+              value: {{ .Values.agent.config.AGENT_SCOPE_NAMESPACE | quote }}
+            {{- end }}
+
 {{- if .Values.sidecar.enabled }}
         # ── agent-sidecar: transparent metadata-injection proxy ──────
         - name: {{ .Values.sidecar.name }}

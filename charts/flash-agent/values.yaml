@@ -24,13 +24,21 @@ agent:
     # AZURE_API_VERSION: "2025-04-01-preview"  # Only needed for Azure OpenAI
 
     # --- MCP Configuration (required) ---
-    # Comma-separated list of MCP server URLs
-    MCP_URLS: "http://kubernetes-mcp-server.litmus.svc.cluster.local:8081/mcp,http://prometheus-mcp-server.litmus.svc.cluster.local:9090/mcp"
+    # Comma-separated list of MCP server URLs.
+    # Both MCPs are deployed by the sock-shop chart in the `sock-shop` namespace;
+    # flash-agent auto-discovers its scope from the namespace label in these URLs.
+    MCP_URLS: "http://kubernetes-mcp-server.sock-shop.svc.cluster.local:8081/mcp,http://prometheus-mcp-server.sock-shop.svc.cluster.local:8083/mcp"
     MCP_TIMEOUT: "30"
 
     # --- Scan Configuration ---
     SCAN_INTERVAL: "0"        # 0 = run once (CronJob mode), >0 = continuous loop
     # SCAN_QUERY: ""          # Optional custom query; defaults to generic MCP analysis
+
+    # --- Scope Override (optional) ---
+    # When set, skips MCP scope auto-discovery and forces the agent to operate
+    # within this namespace. Leave unset to let the agent learn its scope from
+    # the MCP server itself (preferred — handles RBAC changes automatically).
+    # AGENT_SCOPE_NAMESPACE: "sock-shop"
 
   secret:
     OPENAI_API_KEY: "sk-agentcert-2026"
