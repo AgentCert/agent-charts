@@ -3,7 +3,8 @@ set -e
 
 SERVER_NAMESPACE="litmus-chaos"
 SERVER_DEPLOYMENT="litmusportal-server"
-ENV_FILE="/mnt/d/Studies/AgentCert/local-custom/config/.env"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ENV_FILE="${SCRIPT_DIR}/../../.env"
 
 while [[ $# -gt 0 ]]; do
 	case "$1" in
@@ -49,7 +50,7 @@ IMAGE_TAG="ci-$(date +%Y%m%d%H%M%S)"
 IMAGE="agentcert/agentcert-install-agent:${IMAGE_TAG}"
 
 echo "[INFO] Building ${IMAGE}"
-cd /mnt/d/Studies/agent-charts
+cd "${SCRIPT_DIR}/.."
 
 run_docker_build() {
 	docker build -t "${IMAGE}" -f install-agent/Dockerfile .
