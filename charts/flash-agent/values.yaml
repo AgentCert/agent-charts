@@ -13,9 +13,9 @@ agent:
 
   containerImage:
     registry: docker.io
-    repository: agentcert/flash-agent
+    repository: agentcert/agentcert-flash-agent
     tag: latest
-    pullPolicy: IfNotPresent
+    pullPolicy: Always
 
   config:
     # --- LLM Configuration (required) ---
@@ -34,11 +34,11 @@ agent:
     SCAN_INTERVAL: "0"        # 0 = run once (CronJob mode), >0 = continuous loop
     # SCAN_QUERY: ""          # Optional custom query; defaults to generic MCP analysis
 
-    # --- Scope Override (optional) ---
-    # When set, skips MCP scope auto-discovery and forces the agent to operate
-    # within this namespace. Leave unset to let the agent learn its scope from
-    # the MCP server itself (preferred — handles RBAC changes automatically).
-    # AGENT_SCOPE_NAMESPACE: "sock-shop"
+    # --- Target Scope ---
+    # The namespace this agent operates inside. The MCP servers in MCP_URLS are
+    # expected to be RBAC-bound to this namespace. Discovery is used as a
+    # fallback when this is unset (e.g. ad-hoc deploys against unknown clusters).
+    AGENT_SCOPE_NAMESPACE: "sock-shop"
 
   secret:
     OPENAI_API_KEY: "sk-agentcert-2026"
