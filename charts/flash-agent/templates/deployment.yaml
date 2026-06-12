@@ -82,6 +82,37 @@ spec:
               value: {{ .Values.agent.config.AGENT_SCOPE_NAMESPACE | quote }}
             {{- end }}
 
+            # Mitigation mode (see flash-agent/MITIGATION_PLAN.md).
+            # observe = read-only; mitigate = trichotomy gate active.
+            {{- if .Values.agent.config.AGENT_MODE }}
+            - name: AGENT_MODE
+              value: {{ .Values.agent.config.AGENT_MODE | quote }}
+            {{- end }}
+            {{- if .Values.agent.config.MITIGATION_ALLOW_DISCOVERED_SCOPE }}
+            - name: MITIGATION_ALLOW_DISCOVERED_SCOPE
+              value: {{ .Values.agent.config.MITIGATION_ALLOW_DISCOVERED_SCOPE | quote }}
+            {{- end }}
+            {{- if .Values.agent.config.MITIGATION_REVIEW_ITERS }}
+            - name: MITIGATION_REVIEW_ITERS
+              value: {{ .Values.agent.config.MITIGATION_REVIEW_ITERS | quote }}
+            {{- end }}
+            {{- if .Values.agent.config.MITIGATION_AUDIT_PATH }}
+            - name: MITIGATION_AUDIT_PATH
+              value: {{ .Values.agent.config.MITIGATION_AUDIT_PATH | quote }}
+            {{- end }}
+            {{- if .Values.agent.config.AGENT_MEMORY_PATH }}
+            - name: AGENT_MEMORY_PATH
+              value: {{ .Values.agent.config.AGENT_MEMORY_PATH | quote }}
+            {{- end }}
+            {{- if .Values.agent.config.MEMORY_TTL_DAYS }}
+            - name: MEMORY_TTL_DAYS
+              value: {{ .Values.agent.config.MEMORY_TTL_DAYS | quote }}
+            {{- end }}
+            {{- if .Values.agent.config.REVIEWER_MODEL_ALIAS }}
+            - name: REVIEWER_MODEL_ALIAS
+              value: {{ .Values.agent.config.REVIEWER_MODEL_ALIAS | quote }}
+            {{- end }}
+
 {{- if .Values.sidecar.enabled }}
         # ── agent-sidecar: transparent metadata-injection proxy ──────
         - name: {{ .Values.sidecar.name }}

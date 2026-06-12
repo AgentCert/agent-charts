@@ -40,6 +40,21 @@ agent:
     # fallback when this is unset (e.g. ad-hoc deploys against unknown clusters).
     AGENT_SCOPE_NAMESPACE: "sock-shop"
 
+    # --- Mitigation (see flash-agent/MITIGATION_PLAN.md) ---
+    # observe  = read-only (today's default)
+    # mitigate = run the soft/hard/violent trichotomy; soft acts, hard gets a
+    #            2-pass LLM review, violent is filtered out
+    AGENT_MODE: "mitigate"
+    MITIGATION_ALLOW_DISCOVERED_SCOPE: "true"
+    MITIGATION_REVIEW_ITERS: "2"
+    MITIGATION_AUDIT_PATH: ""
+    AGENT_MEMORY_PATH: ""
+    MEMORY_TTL_DAYS: "7"
+    # Reviewer model — set to a distinct model from MODEL_ALIAS so the reviewer's
+    # errors are uncorrelated with the proposer. Empty falls back to MODEL_ALIAS
+    # (the agent logs a degraded-mode warning at startup).
+    REVIEWER_MODEL_ALIAS: ""
+
   secret:
     OPENAI_API_KEY: "sk-agentcert-2026"
 
@@ -83,3 +98,11 @@ rbac:
       - apiGroups: ["apps"]
         resources: ["deployments", "replicasets", "statefulsets"]
         verbs: ["get", "list", "watch"]
+      # Mutation verbs for mitigation mode — patch/scale deployments and
+      # delete pods (controller recreates them on delete → safe restart).
+      - apiGroups: ["apps"]
+        resources: ["deployments", "statefulsets"]
+        verbs: ["patch", "update"]
+      - apiGroups: [""]
+        resources: ["pods"]
+        verbs: ["delete"]
