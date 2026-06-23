@@ -19,15 +19,17 @@ agent:
 
   config:
     # --- LLM Configuration (required) ---
-    OPENAI_BASE_URL: "http://litellm-proxy.litellm.svc.cluster.local:4000/v1"
+    # LiteLLM runs as a Docker container on the host; pods reach it via the
+    # kind docker-network gateway (172.26.0.1). Port 14000 is LITELLM_PORT.
+    OPENAI_BASE_URL: "http://172.26.0.1:14000/v1"
     MODEL_ALIAS: "gpt-4o"
     # AZURE_API_VERSION: "2025-04-01-preview"  # Only needed for Azure OpenAI
 
     # --- MCP Configuration (required) ---
-    # Comma-separated list of MCP server URLs.
-    # Both MCPs are deployed by the sock-shop chart in the `sock-shop` namespace;
-    # flash-agent auto-discovers its scope from the namespace label in these URLs.
-    MCP_URLS: "http://kubernetes-mcp-server.sock-shop.svc.cluster.local:8081/mcp,http://prometheus-mcp-server.sock-shop.svc.cluster.local:8083/mcp"
+    # Both MCPs are deployed in the `litmus` namespace by app-charts.
+    # kubernetes-mcp-server: port 8081, path /mcp
+    # prometheus-mcp-server: port 9090 (HTTP MCP transport, no /mcp suffix)
+    MCP_URLS: "http://kubernetes-mcp-server.litmus.svc.cluster.local:8081/mcp,http://prometheus-mcp-server.litmus.svc.cluster.local:9090/mcp"
     MCP_TIMEOUT: "30"
 
     # --- Scan Configuration ---
@@ -38,7 +40,30 @@ agent:
     # The namespace this agent operates inside. The MCP servers in MCP_URLS are
     # expected to be RBAC-bound to this namespace. Discovery is used as a
     # fallback when this is unset (e.g. ad-hoc deploys against unknown clusters).
-    AGENT_SCOPE_NAMESPACE: "sock-shop"
+    AGENT_SCOPE_NAMESPACE: "litmus"
+
+    # --- Mitigation Configuration ---
+    # AGENT_MODE: "observe" = read-only recommendations (default)
+    #             "mitigate" = closed-loop remediation (requires scope + review config)
+    AGENT_MODE: "observe"
+    # Independent reviewer model for 2-pass adversarial review of hard actions.
+    # Leave empty to fall back to MODEL_ALIAS (degraded — correlated errors).
+    REVIEWER_MODEL_ALIAS: ""
+    # true  = auto-discover scope from MCP server RBAC labels
+    # false = require AGENT_SCOPE_NAMESPACE to be set (safer for production)
+    MITIGATION_ALLOW_DISCOVERED_SCOPE: "false"
+    # Number of LLM review passes before a hard action is approved (min 2).
+    MITIGATION_REVIEW_ITERS: "2"
+    # Path inside the container for the audit JSONL log. Empty = no audit file.
+    MITIGATION_AUDIT_PATH: "/tmp/audit.jsonl"
+    # Path inside the container for the episode memory JSONL store.
+    AGENT_MEMORY_PATH: "/tmp/memory.jsonl"
+    # How many days to keep episode memory before pruning old entries.
+    MEMORY_TTL_DAYS: "7"
+    # Max hard actions per target per scan before the gate starts blocking.
+    MITIGATION_HARD_ACTION_SCAN_LIMIT: "2"
+    # Block hard actions when active chaos is detected in the scan trace.
+    MITIGATION_CHAOS_GUARD_ENABLED: "true"
 
   secret:
     OPENAI_API_KEY: "sk-agentcert-2026"
@@ -83,3 +108,13 @@ rbac:
       - apiGroups: ["apps"]
         resources: ["deployments", "replicasets", "statefulsets"]
         verbs: ["get", "list", "watch"]
+      # Write access required when AGENT_MODE=mitigate
+      - apiGroups: ["apps"]
+        resources: ["deployments", "statefulsets"]
+        verbs: ["patch", "update"]
+      - apiGroups: [""]
+        resources: ["pods"]
+        verbs: ["delete"]
+      - apiGroups: ["autoscaling"]
+        resources: ["horizontalpodautoscalers"]
+        verbs: ["get", "list", "patch", "update"]

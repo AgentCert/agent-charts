@@ -82,6 +82,67 @@ spec:
               value: {{ .Values.agent.config.AGENT_SCOPE_NAMESPACE | quote }}
             {{- end }}
 
+            # Mitigation Configuration
+            - name: AGENT_MODE
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ .Values.agent.name }}-metadata
+                  key: AGENT_MODE
+
+            {{- if .Values.agent.config.REVIEWER_MODEL_ALIAS }}
+            - name: REVIEWER_MODEL_ALIAS
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ .Values.agent.name }}-metadata
+                  key: REVIEWER_MODEL_ALIAS
+            {{- end }}
+
+            - name: MITIGATION_ALLOW_DISCOVERED_SCOPE
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ .Values.agent.name }}-metadata
+                  key: MITIGATION_ALLOW_DISCOVERED_SCOPE
+
+            - name: MITIGATION_REVIEW_ITERS
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ .Values.agent.name }}-metadata
+                  key: MITIGATION_REVIEW_ITERS
+
+            {{- if .Values.agent.config.MITIGATION_AUDIT_PATH }}
+            - name: MITIGATION_AUDIT_PATH
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ .Values.agent.name }}-metadata
+                  key: MITIGATION_AUDIT_PATH
+            {{- end }}
+
+            {{- if .Values.agent.config.AGENT_MEMORY_PATH }}
+            - name: AGENT_MEMORY_PATH
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ .Values.agent.name }}-metadata
+                  key: AGENT_MEMORY_PATH
+            {{- end }}
+
+            - name: MEMORY_TTL_DAYS
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ .Values.agent.name }}-metadata
+                  key: MEMORY_TTL_DAYS
+
+            - name: MITIGATION_HARD_ACTION_SCAN_LIMIT
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ .Values.agent.name }}-metadata
+                  key: MITIGATION_HARD_ACTION_SCAN_LIMIT
+
+            - name: MITIGATION_CHAOS_GUARD_ENABLED
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ .Values.agent.name }}-metadata
+                  key: MITIGATION_CHAOS_GUARD_ENABLED
+
 {{- if .Values.sidecar.enabled }}
         # ── agent-sidecar: transparent metadata-injection proxy ──────
         - name: {{ .Values.sidecar.name }}

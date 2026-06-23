@@ -49,3 +49,20 @@ data:
   {{- if .Values.agent.config.SCAN_QUERY }}
   SCAN_QUERY: {{ .Values.agent.config.SCAN_QUERY | quote }}
   {{- end }}
+
+  # Mitigation Configuration
+  AGENT_MODE: {{ .Values.agent.config.AGENT_MODE | default "observe" | quote }}
+  {{- if .Values.agent.config.REVIEWER_MODEL_ALIAS }}
+  REVIEWER_MODEL_ALIAS: {{ .Values.agent.config.REVIEWER_MODEL_ALIAS | quote }}
+  {{- end }}
+  MITIGATION_ALLOW_DISCOVERED_SCOPE: {{ .Values.agent.config.MITIGATION_ALLOW_DISCOVERED_SCOPE | default "false" | quote }}
+  MITIGATION_REVIEW_ITERS: {{ .Values.agent.config.MITIGATION_REVIEW_ITERS | default "2" | quote }}
+  {{- if .Values.agent.config.MITIGATION_AUDIT_PATH }}
+  MITIGATION_AUDIT_PATH: {{ .Values.agent.config.MITIGATION_AUDIT_PATH | quote }}
+  {{- end }}
+  {{- if .Values.agent.config.AGENT_MEMORY_PATH }}
+  AGENT_MEMORY_PATH: {{ .Values.agent.config.AGENT_MEMORY_PATH | quote }}
+  {{- end }}
+  MEMORY_TTL_DAYS: {{ .Values.agent.config.MEMORY_TTL_DAYS | default "7" | quote }}
+  MITIGATION_HARD_ACTION_SCAN_LIMIT: {{ .Values.agent.config.MITIGATION_HARD_ACTION_SCAN_LIMIT | default "2" | quote }}
+  MITIGATION_CHAOS_GUARD_ENABLED: {{ .Values.agent.config.MITIGATION_CHAOS_GUARD_ENABLED | default "true" | quote }}
