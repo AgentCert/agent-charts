@@ -15,7 +15,7 @@ spec:
       serviceAccountName: {{ .Values.agent.name }}-sa
       containers:
         - name: agent
-          image: "{{ .Values.agent.containerImage.registry }}/{{ .Values.agent.containerImage.repository }}:{{ .Values.agent.containerImage.tag }}"
+          image: "{{ coalesce .Values.global.imageRegistry .Values.agent.containerImage.registry }}/{{ .Values.agent.containerImage.repository }}:{{ .Values.agent.containerImage.tag }}"
           imagePullPolicy: {{ .Values.agent.containerImage.pullPolicy | default "Always" }}
 
           resources:
@@ -85,7 +85,7 @@ spec:
 {{- if .Values.sidecar.enabled }}
         # ── agent-sidecar: transparent metadata-injection proxy ──────
         - name: {{ .Values.sidecar.name }}
-          image: "{{ .Values.sidecar.image.registry }}/{{ .Values.sidecar.image.repository }}:{{ .Values.sidecar.image.tag }}"
+          image: "{{ coalesce .Values.global.imageRegistry .Values.sidecar.image.registry }}/{{ .Values.sidecar.image.repository }}:{{ .Values.sidecar.image.tag }}"
           imagePullPolicy: {{ .Values.sidecar.image.pullPolicy | default "Always" }}
           ports:
             - containerPort: {{ .Values.sidecar.port }}
