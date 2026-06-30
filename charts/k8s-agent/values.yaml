@@ -19,7 +19,7 @@ agent:
     - kubernetes fault detection, remediation
 
   containerImage:
-    registry: docker.io
+    registry: infyartifactory.jfrog.io/docker-local
     repository: nginx
     tag: latest
 

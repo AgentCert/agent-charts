@@ -15,7 +15,7 @@ agent:
   workflowUid: "" # K8s workflow UID (for unique identification)
 
   containerImage:
-    registry: docker.io
+    registry: infyartifactory.jfrog.io/docker-local
     repository: agentcert/agentcert-flash-agent
     tag: latest
     pullPolicy: Always
@@ -55,7 +55,7 @@ sidecar:
   enabled: true
   name: agent-sidecar
   image:
-    registry: docker.io
+    registry: infyartifactory.jfrog.io/docker-local
     repository: agentcert/agent-sidecar
     tag: latest
     pullPolicy: Always

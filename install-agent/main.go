@@ -558,6 +558,12 @@ func callRegisterAgent(serverAddr, projectID, name, version, namespace, helmRele
 		}
 	}`
 
+	// Use IMAGE_REGISTRY env var if set, fall back to docker.io
+	registry := os.Getenv("IMAGE_REGISTRY")
+	if registry == "" {
+		registry = "docker.io"
+	}
+
 	input := map[string]interface{}{
 		"projectID":       projectID,
 		"name":            name,
@@ -567,7 +573,7 @@ func callRegisterAgent(serverAddr, projectID, name, version, namespace, helmRele
 		"namespace":       namespace,
 		"helmReleaseName": helmReleaseName,
 		"containerImage": map[string]interface{}{
-			"registry":   "docker.io",
+			"registry":   registry,
 			"repository": "agentcert/agentcert-flash-agent",
 			"tag":        version,
 		},
