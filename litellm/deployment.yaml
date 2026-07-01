@@ -15,6 +15,8 @@ spec:
       labels:
         app: litellm-proxy
     spec:
+      imagePullSecrets:
+        - name: jfrog-registry
       containers:
         - name: litellm
           image: infyartifactory.jfrog.io/docker-local/litellm/litellm:v1.82.0-stable
@@ -61,6 +63,13 @@ spec:
                 secretKeyRef:
                   name: litellm-secrets
                   key: LANGFUSE_HOST
+            # SSL verification disabled for corporate proxy (Zscaler) environments
+            - name: SSL_VERIFY
+              value: "False"
+            - name: LITELLM_SSL_VERIFY
+              value: "False"
+            - name: REQUESTS_CA_BUNDLE
+              value: ""
           args:
             - "--config"
             - "/app/config.yaml"

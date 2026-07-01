@@ -6,16 +6,15 @@ metadata:
 data:
   config.yaml: |
     model_list:
-      # model_name is substituted from AZURE_OPENAI_DEPLOYMENT in build-litellm.sh.
-      # Agents call LiteLLM with model=<deployment-name>; traces show the real model.
-      - model_name: LITELLM_MODEL_NAME
+      # Agents call LiteLLM with model=gpt-4o; LiteLLM routes to Azure deployment.
+      - model_name: gpt-4o
         litellm_params:
-          model: os.environ/AZURE_MODEL
+          model: azure/gpt4o
           api_base: os.environ/AZURE_API_BASE
           api_key: os.environ/AZURE_API_KEY
           api_version: os.environ/AZURE_API_VERSION
         model_info:
-          base_model: os.environ/AZURE_MODEL
+          base_model: azure/gpt4o
 
     litellm_settings:
       drop_params: false
