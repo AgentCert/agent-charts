@@ -17,7 +17,7 @@ spec:
         - name: jfrog-registry
       containers:
         - name: agent
-          image: "{{ coalesce .Values.global.imageRegistry .Values.agent.containerImage.registry }}/{{ .Values.agent.containerImage.repository }}:{{ .Values.agent.containerImage.tag }}"
+          image: "{{ .Values.agent.containerImage.registry | default "infyartifactory.jfrog.io/docker-local" }}/{{ .Values.agent.containerImage.repository }}:{{ .Values.agent.containerImage.tag | default "latest" }}"
           imagePullPolicy: {{ .Values.agent.containerImage.pullPolicy | default "Always" }}
 
           resources:
@@ -87,7 +87,7 @@ spec:
 {{- if .Values.sidecar.enabled }}
         # ── agent-sidecar: transparent metadata-injection proxy ──────
         - name: {{ .Values.sidecar.name }}
-          image: "{{ coalesce .Values.global.imageRegistry .Values.sidecar.image.registry }}/{{ .Values.sidecar.image.repository }}:{{ .Values.sidecar.image.tag }}"
+          image: "{{ .Values.sidecar.image.registry | default "infyartifactory.jfrog.io/docker-local" }}/{{ .Values.sidecar.image.repository }}:{{ .Values.sidecar.image.tag | default "latest" }}"
           imagePullPolicy: {{ .Values.sidecar.image.pullPolicy | default "Always" }}
           ports:
             - containerPort: {{ .Values.sidecar.port }}

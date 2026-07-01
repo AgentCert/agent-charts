@@ -1,6 +1,5 @@
 # Agent identity — set at deploy time via: helm install --set agentId=<uuid>
-global:
-  imageRegistry: ""    # override via: helm install --set global.imageRegistry=infyartifactory.jfrog.io/docker-remote
+global: {}
 
 agentId: ""
 
@@ -44,7 +43,7 @@ agent:
     AGENT_SCOPE_NAMESPACE: "sock-shop"
 
   secret:
-    OPENAI_API_KEY: "sk-agentcert-2026"
+    OPENAI_API_KEY: "sk-litellm-master-key"
 
 # ── agent-sidecar: transparent metadata-injection proxy ──────────────
 # When enabled, a lightweight sidecar container intercepts agent→LiteLLM
