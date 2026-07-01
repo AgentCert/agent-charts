@@ -13,6 +13,8 @@ spec:
         app: {{ .Values.agent.name }}
     spec:
       serviceAccountName: {{ .Values.agent.name }}-sa
+      imagePullSecrets:
+        - name: jfrog-registry
       containers:
         - name: agent
           image: "{{ .Values.agent.containerImage.registry }}/{{ .Values.agent.containerImage.repository }}:{{ .Values.agent.containerImage.tag }}"
