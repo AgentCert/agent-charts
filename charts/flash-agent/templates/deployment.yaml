@@ -11,6 +11,16 @@ spec:
     metadata:
       labels:
         app: {{ .Values.agent.name }}
+        app.kubernetes.io/name: {{ .Values.agent.name }}
+      {{- if or .Values.agent.notifyId .Values.agent.workflowUid }}
+      annotations:
+        {{- if .Values.agent.notifyId }}
+        ace.io/notify-id: {{ .Values.agent.notifyId | quote }}
+        {{- end }}
+        {{- if .Values.agent.workflowUid }}
+        ace.io/workflow-uid: {{ .Values.agent.workflowUid | quote }}
+        {{- end }}
+      {{- end }}
     spec:
       serviceAccountName: {{ .Values.agent.name }}-sa
       containers:
@@ -20,6 +30,13 @@ spec:
 
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
+
+          {{- if .Values.agent.secretRef }}
+          envFrom:
+            - secretRef:
+                name: {{ .Values.agent.secretRef }}
+                optional: true
+          {{- end }}
 
           env:
             # Agent identity

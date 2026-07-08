@@ -10,6 +10,7 @@ agent:
   role: "observer"  # Agent role: observer, remediation, etc.
   notifyId: ""    # Experiment name (becomes trace_id in Langfuse for correlation)
   workflowUid: "" # K8s workflow UID (for unique identification)
+  secretRef: ""   # K8s Secret name carrying agent experiment secrets (ace-agent-secret-<expID>)
 
   containerImage:
     registry: docker.io
