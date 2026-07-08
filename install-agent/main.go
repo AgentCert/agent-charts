@@ -105,7 +105,7 @@ func parseFlags() *Config {
 	flag.Var(&config.SetValues, "set", "Set values on command line (can be repeated: --set key=value --set key2=value2)")
 	flag.BoolVar(&config.DryRun, "dry-run", false, "Simulate installation without applying")
 	flag.BoolVar(&config.Wait, "wait", true, "Wait for resources to be ready")
-	flag.StringVar(&config.Timeout, "timeout", "10m", "Timeout for installation")
+	flag.StringVar(&config.Timeout, "timeout", "15m", "Timeout for installation")
 	flag.BoolVar(&config.CreateNS, "create-namespace", true, "Create namespace if it doesn't exist")
 	flag.BoolVar(&config.Upgrade, "upgrade", true, "Use helm upgrade --install for idempotent installs (set to false to use helm install)")
 	flag.StringVar(&config.KubeConfig, "kubeconfig", "", "Path to kubeconfig file")
@@ -254,7 +254,7 @@ func installChart(config *Config) error {
 // using kubectl rollout status, which doesn't suffer from Helm's rate limiter bug.
 func waitForDeployments(namespace, timeout string) error {
 	if timeout == "" {
-		timeout = "10m"
+		timeout = "15m"
 	}
 
 	log.Printf("Waiting for all deployments in namespace %s to be ready (timeout: %s)...", namespace, timeout)
