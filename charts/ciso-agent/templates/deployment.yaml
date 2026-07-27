@@ -1,0 +1,110 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.agent.name }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ .Values.agent.name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.agent.name }}
+    spec:
+      serviceAccountName: {{ .Values.agent.name }}-sa
+      containers:
+        - name: agent
+          image: "{{ .Values.agent.containerImage.registry }}/{{ .Values.agent.containerImage.repository }}:{{ .Values.agent.containerImage.tag }}"
+          imagePullPolicy: {{ .Values.agent.containerImage.pullPolicy | default "Always" }}
+
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+
+          env:
+            # Agent identity
+            - name: AGENT_NAME
+              value: {{ .Values.agent.name | quote }}
+
+            # LLM Configuration (required)
+            - name: OPENAI_BASE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ .Values.agent.name }}-metadata
+                  key: OPENAI_BASE_URL
+
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.agent.name }}-secret
+                  key: OPENAI_API_KEY
+                  optional: true
+
+            - name: MODEL_ALIAS
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ .Values.agent.name }}-metadata
+                  key: MODEL_ALIAS
+
+            {{- if .Values.agent.config.AZURE_API_VERSION }}
+            - name: AZURE_API_VERSION
+              value: {{ .Values.agent.config.AZURE_API_VERSION | quote }}
+            {{- end }}
+
+            # MCP Configuration (required)
+            - name: MCP_URLS
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ .Values.agent.name }}-metadata
+                  key: MCP_URLS
+
+            {{- if .Values.agent.config.MCP_TIMEOUT }}
+            - name: MCP_TIMEOUT
+              value: {{ .Values.agent.config.MCP_TIMEOUT | quote }}
+            {{- end }}
+
+            # Scan Configuration
+            {{- if .Values.agent.config.SCAN_INTERVAL }}
+            - name: SCAN_INTERVAL
+              value: {{ .Values.agent.config.SCAN_INTERVAL | quote }}
+            {{- end }}
+
+            {{- if .Values.agent.config.SCAN_QUERY }}
+            - name: SCAN_QUERY
+              value: {{ .Values.agent.config.SCAN_QUERY | quote }}
+            {{- end }}
+
+            # Scope override — when set, skips MCP scope auto-discovery and
+            # forces the agent to operate within this namespace. Leave unset
+            # to auto-discover from the MCP server itself.
+            {{- if .Values.agent.config.AGENT_SCOPE_NAMESPACE }}
+            - name: AGENT_SCOPE_NAMESPACE
+              value: {{ .Values.agent.config.AGENT_SCOPE_NAMESPACE | quote }}
+            {{- end }}
+
+{{- if .Values.sidecar.enabled }}
+        # ── agent-sidecar: transparent metadata-injection proxy ──────
+        - name: {{ .Values.sidecar.name }}
+          image: "{{ .Values.sidecar.image.registry }}/{{ .Values.sidecar.image.repository }}:{{ .Values.sidecar.image.tag }}"
+          imagePullPolicy: {{ .Values.sidecar.image.pullPolicy | default "Always" }}
+          ports:
+            - containerPort: {{ .Values.sidecar.port }}
+              protocol: TCP
+          env:
+            - name: SIDECAR_PORT
+              value: {{ .Values.sidecar.port | quote }}
+            - name: UPSTREAM_URL
+              value: {{ .Values.sidecar.upstream | quote }}
+            - name: CONFIG_MOUNT
+              value: "/etc/agent/metadata"
+          volumeMounts:
+            - name: agent-metadata
+              mountPath: /etc/agent/metadata
+              readOnly: true
+          resources:
+            {{- toYaml .Values.sidecar.resources | nindent 12 }}
+{{- end }}
+      volumes:
+        - name: agent-metadata
+          configMap:
+            name: {{ .Values.agent.name }}-metadata

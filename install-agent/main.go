@@ -33,6 +33,7 @@ type Config struct {
 	Timeout     string
 	CreateNS    bool
 	Upgrade     bool
+	Delete      bool
 	KubeConfig  string
 	KubeContext string
 	// Registration: after helm install, call RegisterAgent on the GraphQL
@@ -74,6 +75,14 @@ func escapeHelmSetValue(setArg string) string {
 func main() {
 	config := parseFlags()
 
+	if config.Delete {
+		if err := uninstallChart(config); err != nil {
+			log.Fatalf("Uninstall failed: %v", err)
+		}
+		log.Printf("Successfully uninstalled agent chart (release: %s, namespace: %s)", config.ReleaseName, config.Namespace)
+		return
+	}
+
 	if err := validateConfig(config); err != nil {
 		log.Fatalf("Configuration error: %v", err)
 	}
@@ -112,6 +121,7 @@ func parseFlags() *Config {
 	flag.StringVar(&config.KubeContext, "context", "", "Kubernetes context to use")
 	flag.StringVar(&config.ServerAddr, "server-addr", "", "GraphQL server URL for agent registration audit (e.g. http://litmusportal-server-service.litmus-chaos.svc.cluster.local:9004/query)")
 	flag.StringVar(&config.ProjectID, "project-id", "litmus-project-1", "Project ID used when registering the agent in the audit store")
+	flag.BoolVar(&config.Delete, "delete", false, "Uninstall (helm uninstall) the chart instead of installing it")
 
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: install-agent [options]\n\n")
@@ -673,6 +683,32 @@ func readChartField(config *Config, field string) string {
 		}
 	}
 	return ""
+}
+
+// uninstallChart runs helm uninstall to remove the agent release.
+// It is tolerant of a release that does not exist.
+func uninstallChart(config *Config) error {
+	releaseName := config.ReleaseName
+	if releaseName == "" {
+		releaseName = config.FolderName
+	}
+
+	args := []string{"uninstall", releaseName, "--namespace", config.Namespace, "--ignore-not-found"}
+	if config.Timeout != "" {
+		args = append(args, "--timeout", config.Timeout)
+	}
+	if config.KubeConfig != "" {
+		args = append(args, "--kubeconfig", config.KubeConfig)
+	}
+	if config.KubeContext != "" {
+		args = append(args, "--kube-context", config.KubeContext)
+	}
+
+	log.Printf("Executing: helm %s", strings.Join(args, " "))
+	cmd := exec.Command("helm", args...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
 }
 
 // ListAvailableCharts lists all available charts in the charts path

@@ -1,0 +1,80 @@
+# Agent identity — set at deploy time via: helm install --set agentId=<uuid>
+agentId: ""
+
+agent:
+  name: sre-agent-crewai
+  version: "1.0.0"
+  vendor: "AgentCert"
+  id: ""
+  role: "remediation"
+  notifyId: ""
+  workflowUid: ""
+
+  containerImage:
+    registry: localhost:5000
+    repository: agentcert/sre-agent-crewai
+    tag: latest
+    pullPolicy: Always
+
+  config:
+    # --- LLM Configuration ---
+    OPENAI_BASE_URL: "http://litellm-proxy.litellm.svc.cluster.local:4000/v1"
+    MODEL_ALIAS: "gpt-4o"
+
+    # --- MCP Configuration ---
+    MCP_URLS: "http://kubernetes-mcp-server.otel-demo.svc.cluster.local:8081/mcp,http://prometheus-mcp-server.otel-demo.svc.cluster.local:8083/mcp"
+    MCP_TIMEOUT: "30"
+
+    # --- Agent behaviour ---
+    SCAN_INTERVAL: "60"
+    AGENT_SCOPE_NAMESPACE: "otel-demo"
+
+    GOAL: "Diagnose and remediate all faults in the Kubernetes cluster."
+
+    # Disable CrewAI telemetry inside the container
+    CREWAI_TELEMETRY_OPT_OUT: "true"
+    OTEL_SDK_DISABLED: "true"
+
+  secret:
+    OPENAI_API_KEY: "sk-agentcert-2026"
+
+# ── agent-sidecar: transparent metadata-injection proxy ──────────────
+# When enabled, a lightweight sidecar container intercepts agent→LiteLLM
+# requests, injects experiment context (EXPERIMENT_ID, EXPERIMENT_RUN_ID,
+# WORKFLOW_NAME) into the metadata field, and forwards to upstream.
+# The agent has ZERO awareness of experiment context.
+sidecar:
+  enabled: true
+  name: agent-sidecar
+  image:
+    registry: docker.io
+    repository: agentcert/agent-sidecar
+    tag: latest
+    pullPolicy: Always
+  port: 4001
+  # The real LiteLLM proxy URL — sidecar forwards enriched requests here
+  upstream: "http://litellm-proxy.litellm.svc.cluster.local:4000"
+  # Injection mode: "openai-metadata" | "http-header" | "none"
+  injectionMode: "openai-metadata"
+  resources:
+    limits:
+      cpu: "100m"
+      memory: "64Mi"
+
+resources:
+  limits:
+    cpu: "500m"
+    memory: "1.5Gi"     # Bumped from 512Mi — agent needs more for LLM tool-call chains
+
+rbac:
+  cluster:
+    create: true
+    rules:
+      # Read access to pods and logs
+      - apiGroups: [""]
+        resources: ["pods", "pods/log", "pods/status", "events"]
+        verbs: ["get", "list", "watch"]
+      # Read access to higher-level resources
+      - apiGroups: ["apps"]
+        resources: ["deployments", "replicasets", "statefulsets"]
+        verbs: ["get", "list", "watch"]

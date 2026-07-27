@@ -61,3 +61,75 @@ spec:
           source: "{{workflow.uid}}"
         - helmPath: "agent.config.WORKFLOW_NAME"
           source: "{{workflow.labels.subject}}"
+    - name: sre-agent
+      displayName: SRE Agent
+      description: "SRE Incident Diagnosis Agent using ITBench offline snapshot mode for Kubernetes fault analysis."
+      version: "0.1.0"
+      capabilities:
+        - fault-diagnosis
+        - itbench-sre
+        - offline-snapshot
+      installTemplateName: "install-agent"
+      installImage: "agentcert/agentcert-install-agent:latest"
+      contextInjection:
+        - helmPath: "agent.config.EXPERIMENT_ID"
+          source: "{{workflow.labels.workflow_id}}"
+        - helmPath: "agent.config.EXPERIMENT_RUN_ID"
+          source: "{{workflow.uid}}"
+        - helmPath: "agent.config.WORKFLOW_NAME"
+          source: "{{workflow.labels.subject}}"
+    - name: sre-agent-comprehensive
+      displayName: SRE Agent (Comprehensive)
+      description: "SRE Comprehensive Fault Remediation Agent — live Kubernetes mode via MCP tools for observe-and-remediate workflows."
+      version: "0.1.0"
+      capabilities:
+        - fault-detection
+        - auto-remediation
+        - live-k8s
+        - mcp
+      installTemplateName: "install-agent"
+      installImage: "agentcert/agentcert-install-agent:latest"
+      contextInjection:
+        - helmPath: "agent.config.EXPERIMENT_ID"
+          source: "{{workflow.labels.workflow_id}}"
+        - helmPath: "agent.config.EXPERIMENT_RUN_ID"
+          source: "{{workflow.uid}}"
+        - helmPath: "agent.config.WORKFLOW_NAME"
+          source: "{{workflow.labels.subject}}"
+    - name: sre-agent-crewai
+      displayName: SRE Agent (CrewAI)
+      description: "SRE Incident Diagnosis Agent built with CrewAI — live Kubernetes mode via MCP tools."
+      version: "0.1.0"
+      capabilities:
+        - fault-diagnosis
+        - crewai
+        - live-k8s
+        - mcp
+      installTemplateName: "install-agent"
+      installImage: "agentcert/agentcert-install-agent:latest"
+      contextInjection:
+        - helmPath: "agent.config.EXPERIMENT_ID"
+          source: "{{workflow.labels.workflow_id}}"
+        - helmPath: "agent.config.EXPERIMENT_RUN_ID"
+          source: "{{workflow.uid}}"
+        - helmPath: "agent.config.WORKFLOW_NAME"
+          source: "{{workflow.labels.subject}}"
+    - name: ciso-agent
+      displayName: CISO Agent
+      description: "CISO Compliance Automation Agent using LangGraph and CrewAI for Kubernetes security and compliance evaluation."
+      version: "0.1.0"
+      capabilities:
+        - ciso-compliance
+        - langgraph
+        - crewai
+        - kyverno
+        - opa
+      installTemplateName: "install-agent"
+      installImage: "agentcert/agentcert-install-agent:latest"
+      contextInjection:
+        - helmPath: "agent.config.EXPERIMENT_ID"
+          source: "{{workflow.labels.workflow_id}}"
+        - helmPath: "agent.config.EXPERIMENT_RUN_ID"
+          source: "{{workflow.uid}}"
+        - helmPath: "agent.config.WORKFLOW_NAME"
+          source: "{{workflow.labels.subject}}"

@@ -30,6 +30,13 @@ data:
       num_retries: 3
       retry_after: 30
 
+    router_settings:
+      # Disabled: triggers a background health-check scheduler that pings every
+      # configured model every ~5 min and logs each probe to Langfuse, generating
+      # spurious litellm-acompletion traces. Reactive failure handling via
+      # allowed_fails + cooldown_time is sufficient for routing correctness.
+      enable_pre_call_checks: false
+
     general_settings:
       master_key: os.environ/LITELLM_MASTER_KEY
       allow_requests_on_health: true
