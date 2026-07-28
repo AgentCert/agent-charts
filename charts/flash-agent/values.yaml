@@ -1,4 +1,6 @@
 # Agent identity — set at deploy time via: helm install --set agentId=<uuid>
+global: {}
+
 agentId: ""
 
 agent:
@@ -12,7 +14,7 @@ agent:
   workflowUid: "" # K8s workflow UID (for unique identification)
 
   containerImage:
-    registry: docker.io
+    registry: infyartifactory.jfrog.io/docker-local
     repository: agentcert/agentcert-flash-agent
     tag: latest
     pullPolicy: Always
@@ -41,7 +43,7 @@ agent:
     AGENT_SCOPE_NAMESPACE: "sock-shop"
 
   secret:
-    OPENAI_API_KEY: "sk-agentcert-2026"
+    OPENAI_API_KEY: "sk-litellm-master-key"
 
 # ── agent-sidecar: transparent metadata-injection proxy ──────────────
 # When enabled, a lightweight sidecar container intercepts agent→LiteLLM
@@ -52,7 +54,7 @@ sidecar:
   enabled: true
   name: agent-sidecar
   image:
-    registry: docker.io
+    registry: infyartifactory.jfrog.io/docker-local
     repository: agentcert/agent-sidecar
     tag: latest
     pullPolicy: Always

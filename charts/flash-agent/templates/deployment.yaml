@@ -13,9 +13,11 @@ spec:
         app: {{ .Values.agent.name }}
     spec:
       serviceAccountName: {{ .Values.agent.name }}-sa
+      imagePullSecrets:
+        - name: jfrog-registry
       containers:
         - name: agent
-          image: "{{ .Values.agent.containerImage.registry }}/{{ .Values.agent.containerImage.repository }}:{{ .Values.agent.containerImage.tag }}"
+          image: "{{- if .Values.agent.containerImage.registry }}{{ .Values.agent.containerImage.registry }}/{{- end }}{{ .Values.agent.containerImage.repository }}:{{ .Values.agent.containerImage.tag | default "latest" }}"
           imagePullPolicy: {{ .Values.agent.containerImage.pullPolicy | default "Always" }}
 
           resources:
@@ -85,7 +87,7 @@ spec:
 {{- if .Values.sidecar.enabled }}
         # ── agent-sidecar: transparent metadata-injection proxy ──────
         - name: {{ .Values.sidecar.name }}
-          image: "{{ .Values.sidecar.image.registry }}/{{ .Values.sidecar.image.repository }}:{{ .Values.sidecar.image.tag }}"
+          image: "{{- if .Values.sidecar.image.registry }}{{ .Values.sidecar.image.registry }}/{{- end }}{{ .Values.sidecar.image.repository }}:{{ .Values.sidecar.image.tag | default "latest" }}"
           imagePullPolicy: {{ .Values.sidecar.image.pullPolicy | default "Always" }}
           ports:
             - containerPort: {{ .Values.sidecar.port }}
