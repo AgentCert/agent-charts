@@ -82,6 +82,15 @@ spec:
               value: {{ .Values.agent.config.AGENT_SCOPE_NAMESPACE | quote }}
             {{- end }}
 
+            # Agent goal — required by sre_comprehensive.__main__ (or set AGENT_GOAL env var)
+            {{- if .Values.agent.config.AGENT_GOAL }}
+            - name: AGENT_GOAL
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ .Values.agent.name }}-metadata
+                  key: AGENT_GOAL
+            {{- end }}
+
 {{- if .Values.sidecar.enabled }}
         # ── agent-sidecar: transparent metadata-injection proxy ──────
         - name: {{ .Values.sidecar.name }}

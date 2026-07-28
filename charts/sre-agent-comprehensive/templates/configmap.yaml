@@ -49,3 +49,8 @@ data:
   {{- if .Values.agent.config.SCAN_QUERY }}
   SCAN_QUERY: {{ .Values.agent.config.SCAN_QUERY | quote }}
   {{- end }}
+
+  # Agent goal — injected as AGENT_GOAL env var into the agent container
+  {{- if .Values.agent.config.AGENT_GOAL }}
+  AGENT_GOAL: {{ .Values.agent.config.AGENT_GOAL | quote }}
+  {{- end }}
