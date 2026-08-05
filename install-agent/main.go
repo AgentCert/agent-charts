@@ -178,10 +178,28 @@ func validateConfig(config *Config) error {
 func installChart(config *Config) error {
 	chartPath := filepath.Join(config.ChartsPath, config.FolderName)
 
+	// Calculate total steps upfront for progress display.
+	totalSteps := 1 // helm run always executes
+	if config.CreateNS {
+		totalSteps++
+	}
+	if config.Upgrade {
+		totalSteps++
+	}
+	if config.Wait {
+		totalSteps++
+	}
+	step := 0
+	nextStep := func(msg string, args ...interface{}) {
+		step++
+		log.Printf("[%d/%d] "+msg, append([]interface{}{step, totalSteps}, args...)...)
+	}
+
 	// Pre-create namespace if requested, instead of relying on Helm's --create-namespace
 	// which fails with "already exists" error on upgrade --install when namespace was
 	// created outside of Helm
 	if config.CreateNS {
+		nextStep("Preparing namespace: %s", config.Namespace)
 		if err := ensureNamespace(config.Namespace, config.ReleaseName); err != nil {
 			log.Printf("Warning: failed to ensure namespace %s: %v", config.Namespace, err)
 		}
@@ -191,6 +209,7 @@ func installChart(config *Config) error {
 	// This prevents "invalid ownership metadata" errors when resources were left behind
 	// from a previous Helm release (e.g., cleanup purged the release but not the resources).
 	if config.Upgrade {
+		nextStep("Adopting existing chart resources")
 		if err := adoptExistingResources(config); err != nil {
 			log.Printf("Warning: failed to adopt existing resources: %v", err)
 		}
@@ -239,7 +258,7 @@ func installChart(config *Config) error {
 		args = append(args, "--kube-context", config.KubeContext)
 	}
 
-	log.Printf("Executing: helm %s", strings.Join(args, " "))
+	nextStep("Running: helm %s", strings.Join(args, " "))
 
 	cmd := exec.Command("helm", args...)
 	cmd.Stdout = os.Stdout
@@ -252,6 +271,7 @@ func installChart(config *Config) error {
 	// If --wait was requested, use kubectl rollout status instead of Helm's
 	// built-in wait which suffers from client-go rate limiter bugs in v3.14
 	if config.Wait {
+		nextStep("Waiting for deployments to be ready")
 		if err := waitForDeployments(config.Namespace, config.Timeout); err != nil {
 			return fmt.Errorf("deployments not ready: %w", err)
 		}
@@ -384,12 +404,16 @@ func adoptExistingResources(config *Config) error {
 		return nil
 	}
 
-	log.Printf("Discovered %d resources from chart template", len(resources))
+	total := len(resources)
+	log.Printf("Discovered %d resources from chart template", total)
 
 	adopted := 0
-	for _, res := range resources {
+	for i, res := range resources {
 		if adoptResource(res, config.ReleaseName, config.Namespace) {
 			adopted++
+		}
+		if n := i + 1; n%10 == 0 || n == total {
+			log.Printf("  [%d/%d] Resources checked", n, total)
 		}
 	}
 

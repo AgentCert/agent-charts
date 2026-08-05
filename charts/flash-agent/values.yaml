@@ -15,7 +15,7 @@ agent:
     registry: docker.io
     repository: agentcert/agentcert-flash-agent
     tag: latest
-    pullPolicy: Always
+    pullPolicy: IfNotPresent
 
   config:
     # --- LLM Configuration (required) ---
@@ -55,7 +55,7 @@ sidecar:
     registry: docker.io
     repository: agentcert/agent-sidecar
     tag: latest
-    pullPolicy: Always
+    pullPolicy: IfNotPresent
   port: 4001
   # The real LiteLLM proxy URL — sidecar forwards enriched requests here
   upstream: "http://litellm-proxy.litellm.svc.cluster.local:4000"

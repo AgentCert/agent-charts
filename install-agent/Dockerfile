@@ -14,7 +14,7 @@ RUN go mod download
 COPY install-agent/ ./
 
 # Build the binary
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o install-agent .
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o install-agent .
 
 # Final stage
 FROM alpine:3.19
