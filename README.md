@@ -89,7 +89,7 @@ Key values (excerpt from [`charts/flash-agent/values.yaml`](charts/flash-agent/v
 ```yaml
 agent:
   config:
-    OPENAI_BASE_URL: http://litellm-proxy.litellm.svc.cluster.local:4000/v1
+    OPENAI_BASE_URL: http://litellm.ace.svc.cluster.local:14000/v1
     MODEL_ALIAS:      gpt-4o
     MCP_URLS:         "http://kubernetes-mcp-server.sock-shop.svc.cluster.local:8081/sse,\
                        http://prometheus-mcp-server.sock-shop.svc.cluster.local:8082/sse"
@@ -103,7 +103,7 @@ agent:
 sidecar:
   enabled: true
   port:     4001
-  upstreamUrl: http://litellm-proxy.litellm.svc.cluster.local:4000
+  upstreamUrl: http://litellm.ace.svc.cluster.local:14000
   injectionMode: openai-metadata    # or http-header / none
 ```
 
@@ -198,7 +198,7 @@ kubectl apply -f litellm/configmap.yaml
 kubectl apply -f litellm/deployment.yaml
 ```
 
-In-cluster endpoint: `http://litellm-proxy.litellm.svc.cluster.local:4000`.
+In-cluster endpoint: `http://litellm.ace.svc.cluster.local:14000`.
 
 ---
 

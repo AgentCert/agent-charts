@@ -24,7 +24,7 @@ agent:
     tag: latest
 
   config:
-    LITELLM_URL: "http://litellm-proxy.litellm.svc.cluster.local:4000"
+    LITELLM_URL: "http://litellm.ace.svc.cluster.local:14000"
     MODEL_ALIAS: "gemini-3-flash"
     K8S_NAMESPACE: "test"
     AUTO_REMEDIATE: "true"

@@ -18,7 +18,7 @@ agent:
 
   config:
     # --- LLM Configuration ---
-    OPENAI_BASE_URL: "http://litellm-proxy.litellm.svc.cluster.local:4000/v1"
+    OPENAI_BASE_URL: "http://litellm.ace.svc.cluster.local:14000/v1"
     MODEL_ALIAS: "qwen2.5-32b-instruct"
 
     # --- MCP Configuration ---
@@ -52,7 +52,7 @@ sidecar:
     pullPolicy: Always
   port: 4001
   # The real LiteLLM proxy URL — sidecar forwards enriched requests here
-  upstream: "http://litellm-proxy.litellm.svc.cluster.local:4000"
+  upstream: "http://litellm.ace.svc.cluster.local:14000"
   # Injection mode: "openai-metadata" | "http-header" | "none"
   injectionMode: "openai-metadata"
   resources:
