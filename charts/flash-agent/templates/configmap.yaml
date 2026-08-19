@@ -23,6 +23,13 @@ data:
   NOTIFY_ID: {{ .Values.agent.config.NOTIFY_ID | default .Values.agent.notifyId | default "" | quote }}
   WORKFLOW_NAME: {{ .Values.agent.config.WORKFLOW_NAME | default .Values.agent.notifyId | default "" | quote }}
   WORKFLOW_UID: {{ .Values.agent.workflowUid | default "" | quote }}
+  # CURRENT_FAULT_NAME starts empty at deploy time. The Argo workflow's
+  # fault-injection step patches this same ConfigMap (`kubectl patch
+  # configmap {{ .Values.agent.name }}-metadata --type merge`) right before
+  # injecting a fault and clears it right after revert, so the sidecar can
+  # stamp each LLM call with the fault window it actually fell in. See
+  # agent-sidecar/proxy.py and certifier/fault_analyzer's Phase 0 bucketing.
+  CURRENT_FAULT_NAME: ""
 
   # LLM Configuration
   # When sidecar is enabled, route through sidecar for metadata injection
