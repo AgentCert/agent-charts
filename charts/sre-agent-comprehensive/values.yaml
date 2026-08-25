@@ -11,10 +11,10 @@ agent:
   workflowUid: ""
 
   containerImage:
-    registry: localhost:5000
+    registry: docker.io
     repository: agentcert/sre-agent-comprehensive
     tag: latest
-    pullPolicy: Always
+    pullPolicy: IfNotPresent
 
   config:
     # --- LLM Configuration ---

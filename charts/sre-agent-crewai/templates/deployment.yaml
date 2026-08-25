@@ -82,6 +82,24 @@ spec:
               value: {{ .Values.agent.config.AGENT_SCOPE_NAMESPACE | quote }}
             {{- end }}
 
+            # Investigation goal — this entrypoint takes no CLI args under
+            # this chart, so --goal's default reads this env var instead.
+            {{- if .Values.agent.config.GOAL }}
+            - name: GOAL
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ .Values.agent.name }}-metadata
+                  key: GOAL
+            {{- end }}
+
+            # "observe" (default, read-only) or "active" (delete_k8s_resource
+            # available) — see configmap.yaml and mcp_tools.py.
+            - name: AGENT_MODE
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ .Values.agent.name }}-metadata
+                  key: AGENT_MODE
+
 {{- if .Values.sidecar.enabled }}
         # ── agent-sidecar: transparent metadata-injection proxy ──────
         - name: {{ .Values.sidecar.name }}

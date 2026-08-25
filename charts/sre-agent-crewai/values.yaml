@@ -31,6 +31,15 @@ agent:
 
     GOAL: "Diagnose and remediate all faults in the Kubernetes cluster."
 
+    # "observe" (default, matches flash-agent's own safe default) = read-only,
+    # delete_k8s_resource is not registered as a tool at all. "active" = full
+    # toolset, including delete_k8s_resource. See mcp_tools.py/crew.py — the
+    # GOAL text above is deliberately left as-is either way; crew.py adjusts
+    # the concrete step-by-step task instructions (and adds an explicit
+    # read-only notice) to match whichever mode is actually active, so the
+    # model is never told to call a tool it doesn't have.
+    AGENT_MODE: "observe"
+
     # Disable CrewAI telemetry inside the container
     CREWAI_TELEMETRY_OPT_OUT: "true"
     OTEL_SDK_DISABLED: "true"

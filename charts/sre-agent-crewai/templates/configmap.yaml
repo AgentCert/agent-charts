@@ -49,3 +49,16 @@ data:
   {{- if .Values.agent.config.SCAN_QUERY }}
   SCAN_QUERY: {{ .Values.agent.config.SCAN_QUERY | quote }}
   {{- end }}
+
+  # Investigation goal — read by sre_crewai's `--goal` CLI default (this
+  # entrypoint takes no CLI args when run under this chart; see __main__.py).
+  {{- if .Values.agent.config.GOAL }}
+  GOAL: {{ .Values.agent.config.GOAL | quote }}
+  {{- end }}
+
+  # AGENT_MODE: "observe" (default) = read-only, delete_k8s_resource is not
+  # registered as a tool at all; "active" = full toolset. Already set on
+  # every real ChaosCenter-driven install via injectExperimentContextArgs()
+  # in service.go (same env var flash-agent/k8s-agent use) — this key was
+  # simply never wired through before, so the value had nowhere to land.
+  AGENT_MODE: {{ .Values.agent.config.AGENT_MODE | default "observe" | quote }}
