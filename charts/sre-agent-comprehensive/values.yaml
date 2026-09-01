@@ -20,6 +20,7 @@ agent:
     # --- LLM Configuration ---
     OPENAI_BASE_URL: "http://litellm.ace.svc.cluster.local:14000/v1"
     MODEL_ALIAS: "qwen2.5-32b-instruct"
+    LANGFUSE_HOST: "http://langfuse-web.ace.svc.cluster.local:3000"
 
     # --- MCP Configuration ---
     # K8s and Prometheus MCP servers deployed alongside the app under test.
@@ -29,6 +30,9 @@ agent:
 
     # --- Agent behaviour ---
     SCAN_INTERVAL: "60"
+    AGENT_MAX_RUNTIME_SECONDS: "780"
+    AGENT_IDLE_AFTER_MAX_RUNTIME: "true"
+    TARGET_NAMESPACE: "otel-demo"
     AGENT_SCOPE_NAMESPACE: "otel-demo"
 
     # Goal passed to the agent at startup (read as AGENT_GOAL env var)
@@ -36,6 +40,8 @@ agent:
 
   secret:
     OPENAI_API_KEY: "sk-agentcert-2026"
+    LANGFUSE_PUBLIC_KEY: ""
+    LANGFUSE_SECRET_KEY: ""
 
 # ── agent-sidecar: transparent metadata-injection proxy ──────────────
 # When enabled, a lightweight sidecar container intercepts agent→LiteLLM

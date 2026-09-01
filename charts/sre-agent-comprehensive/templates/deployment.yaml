@@ -26,6 +26,33 @@ spec:
             - name: AGENT_NAME
               value: {{ .Values.agent.name | quote }}
 
+            # Experiment correlation for agent-emitted tool observations.
+            - name: NOTIFY_ID
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ .Values.agent.name }}-metadata
+                  key: NOTIFY_ID
+            - name: EXPERIMENT_ID
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ .Values.agent.name }}-metadata
+                  key: EXPERIMENT_ID
+            - name: EXPERIMENT_RUN_ID
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ .Values.agent.name }}-metadata
+                  key: EXPERIMENT_RUN_ID
+            - name: WORKFLOW_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ .Values.agent.name }}-metadata
+                  key: WORKFLOW_NAME
+            - name: WORKFLOW_UID
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ .Values.agent.name }}-metadata
+                  key: WORKFLOW_UID
+
             # LLM Configuration (required)
             - name: OPENAI_BASE_URL
               valueFrom:
@@ -45,6 +72,24 @@ spec:
                 configMapKeyRef:
                   name: {{ .Values.agent.name }}-metadata
                   key: MODEL_ALIAS
+
+            - name: LANGFUSE_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ .Values.agent.name }}-metadata
+                  key: LANGFUSE_HOST
+            - name: LANGFUSE_PUBLIC_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.agent.name }}-secret
+                  key: LANGFUSE_PUBLIC_KEY
+                  optional: true
+            - name: LANGFUSE_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.agent.name }}-secret
+                  key: LANGFUSE_SECRET_KEY
+                  optional: true
 
             {{- if .Values.agent.config.AZURE_API_VERSION }}
             - name: AZURE_API_VERSION
@@ -73,6 +118,22 @@ spec:
             - name: SCAN_QUERY
               value: {{ .Values.agent.config.SCAN_QUERY | quote }}
             {{- end }}
+
+            - name: TARGET_NAMESPACE
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ .Values.agent.name }}-metadata
+                  key: TARGET_NAMESPACE
+            - name: AGENT_MAX_RUNTIME_SECONDS
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ .Values.agent.name }}-metadata
+                  key: AGENT_MAX_RUNTIME_SECONDS
+            - name: AGENT_IDLE_AFTER_MAX_RUNTIME
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ .Values.agent.name }}-metadata
+                  key: AGENT_IDLE_AFTER_MAX_RUNTIME
 
             # Scope override — when set, skips MCP scope auto-discovery and
             # forces the agent to operate within this namespace. Leave unset
