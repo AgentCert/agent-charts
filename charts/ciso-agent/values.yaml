@@ -11,10 +11,11 @@ agent:
   workflowUid: ""
 
   containerImage:
-    registry: localhost:5000
+    registry: docker.io
     repository: agentcert/ciso-agent
     tag: latest
-    pullPolicy: Always
+    # kind-loaded images are not in any registry — never re-pull them.
+    pullPolicy: IfNotPresent
 
   config:
     # --- LLM Configuration ---

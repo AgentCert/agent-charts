@@ -1,0 +1,106 @@
+# Agent identity — injected at deploy time via: helm upgrade --set agentId=<uuid>
+# by agent-charts/install-agent after it calls the RegisterAgent mutation.
+agentId: ""
+
+agent:
+  # MUST equal the chart folder name and the Helm release name. The Argo
+  # fault-injection step patches the ConfigMap by the literal name
+  # "<agentFolder>-metadata", so a mismatch silently breaks fault attribution.
+  name: generic-agent
+  version: "1.0.0"
+  vendor: "AgentCert"
+
+  id: ""            # set by install-agent's helmUpgradeWithAgentID
+  role: "observer"  # observer | remediation | compliance
+  notifyId: ""      # experiment run id -> Langfuse trace_id
+  sessionId: ""     # groups every run of a benchmarking session
+  workflowUid: ""
+
+  containerImage:
+    registry: docker.io
+    repository: agentcert/generic-agent
+    tag: v1.0.0
+    # kind-loaded images are not in any registry — never re-pull them.
+    pullPolicy: IfNotPresent
+
+  # Everything here lands in the ConfigMap verbatim and is handed to the
+  # container via envFrom, so the control plane can inject keys this chart has
+  # never heard of without a template change.
+  config:
+    # --- ACE contract: LLM ---
+    # Only used when sidecar.enabled=false. With the sidecar on, the ConfigMap
+    # rewrites OPENAI_BASE_URL to localhost and sidecar.upstream is what
+    # actually reaches LiteLLM.
+    OPENAI_BASE_URL: "http://litellm.ace.svc.cluster.local:14000/v1"
+    MODEL_ALIAS: "gpt-4o"
+    # AZURE_API_VERSION: "2025-04-01-preview"
+
+    # --- ACE contract: MCP ---
+    MCP_URLS: "http://kubernetes-mcp-server.sock-shop.svc.cluster.local:8081/mcp,http://prometheus-mcp-server.sock-shop.svc.cluster.local:8083/mcp"
+    MCP_TIMEOUT: "30"
+
+    # --- ACE contract: scope + task ---
+    AGENT_SCOPE_NAMESPACE: "sock-shop"
+    # SCAN_QUERY: ""   # left unset -> agent default
+
+    # --- Agent-private knobs (ACE never sets these) ---
+    SCAN_INTERVAL: "0"     # 0 = single pass, >0 = loop every N seconds
+    MAX_ITERATIONS: "10"
+    RESCAN_DELAY: "30"
+    WATCH_MODE: "false"
+    LOG_LEVEL: "INFO"
+    LLM_REQUEST_TIMEOUT: "120.0"
+    LLM_MAX_RETRIES: "2"
+
+  secret:
+    OPENAI_API_KEY: "sk-agentcert-2026"
+
+  # Escape hatch for values that must not go through the ConfigMap.
+  extraEnv: []
+  # - name: SOME_VAR
+  #   value: "x"
+
+# ── agent-sidecar: transparent metadata-injection proxy ──────────────────────
+# Intercepts agent -> LiteLLM traffic and stamps experiment context
+# (trace_id, agent_id, current_fault_name) into the request metadata.
+# The agent has ZERO awareness of any of it.
+sidecar:
+  enabled: true
+  name: agent-sidecar
+  image:
+    registry: docker.io
+    repository: agentcert/agent-sidecar
+    tag: latest
+    pullPolicy: IfNotPresent
+  port: 4001
+  upstream: "http://litellm.ace.svc.cluster.local:14000"
+  injectionMode: "openai-metadata"   # openai-metadata | http-header | none
+  resources:
+    limits:
+      cpu: "100m"
+      memory: "64Mi"
+
+resources:
+  limits:
+    cpu: "500m"
+    memory: "1.5Gi"
+
+rbac:
+  # Namespaced Role — off by default, the ClusterRole below covers reads.
+  create: false
+  rules: []
+  cluster:
+    create: true
+    # Observer scope: read-only. A remediation agent additionally needs
+    # patch/update/delete — grant the narrowest set that still lets the agent
+    # fix the faults it is certified against.
+    rules:
+      - apiGroups: [""]
+        resources: ["pods", "pods/log", "pods/status", "events", "services", "nodes"]
+        verbs: ["get", "list", "watch"]
+      - apiGroups: ["apps"]
+        resources: ["deployments", "replicasets", "statefulsets", "daemonsets"]
+        verbs: ["get", "list", "watch"]
+      - apiGroups: [""]
+        resources: ["namespaces"]
+        verbs: ["get", "list"]

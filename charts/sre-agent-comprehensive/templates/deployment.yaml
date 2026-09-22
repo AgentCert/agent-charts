@@ -21,6 +21,13 @@ spec:
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
 
+          # Carries every ConfigMap key, including ones the control plane
+          # injected that this chart has no explicit entry for. The env: list
+          # below still wins for the keys it names.
+          envFrom:
+            - configMapRef:
+                name: {{ .Values.agent.name }}-metadata
+
           env:
             # Agent identity
             - name: AGENT_NAME

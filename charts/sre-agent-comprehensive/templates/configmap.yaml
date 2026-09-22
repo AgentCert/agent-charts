@@ -1,3 +1,4 @@
+{{- $reserved := list "OPENAI_BASE_URL" "AGENT_NAME" "AGENT_ID" "AGENT_ROLE" "AGENT_VERSION" "NOTIFY_ID" "SESSION_ID" "WORKFLOW_NAME" "WORKFLOW_UID" "CURRENT_FAULT_NAME" "TARGET_NAMESPACE" "AGENT_MAX_RUNTIME_SECONDS" "AGENT_IDLE_AFTER_MAX_RUNTIME" -}}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -59,4 +60,13 @@ data:
   # Agent goal — injected as AGENT_GOAL env var into the agent container
   {{- if .Values.agent.config.AGENT_GOAL }}
   AGENT_GOAL: {{ .Values.agent.config.AGENT_GOAL | quote }}
+  {{- end }}
+
+  # Everything else, verbatim. The control plane injects ~40 --set
+  # agent.config.* values per run; enumerating keys above silently dropped every
+  # one this chart had not been taught about.
+  {{- range $key, $value := .Values.agent.config }}
+  {{- if not (has $key $reserved) }}
+  {{ $key }}: {{ $value | quote }}
+  {{- end }}
   {{- end }}

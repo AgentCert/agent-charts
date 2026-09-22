@@ -133,3 +133,20 @@ spec:
           source: "{{workflow.uid}}"
         - helmPath: "agent.config.WORKFLOW_NAME"
           source: "{{workflow.labels.subject}}"
+    - name: generic-agent
+      displayName: Generic Agent
+      description: "MCP-driven Kubernetes analysis agent: discovers tools, runs a ReAct loop, and emits a structured health analysis with remediation guidance."
+      version: "1.0.0"
+      capabilities:
+        - fault-detection
+        - live-k8s
+        - mcp
+      installTemplateName: "install-agent"
+      installImage: "agentcert/agentcert-install-agent:latest"
+      contextInjection:
+        - helmPath: "agent.config.EXPERIMENT_ID"
+          source: "{{workflow.labels.workflow_id}}"
+        - helmPath: "agent.config.EXPERIMENT_RUN_ID"
+          source: "{{workflow.uid}}"
+        - helmPath: "agent.config.WORKFLOW_NAME"
+          source: "{{workflow.labels.subject}}"

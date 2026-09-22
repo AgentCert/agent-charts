@@ -1,0 +1,6 @@
+apiVersion: v2
+name: generic-agent
+description: Generic Agent — MCP-driven Kubernetes analysis agent under test in ACE
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
