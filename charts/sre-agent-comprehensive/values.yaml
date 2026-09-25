@@ -30,8 +30,8 @@ agent:
 
     # --- Agent behaviour ---
     SCAN_INTERVAL: "60"
-    AGENT_MAX_RUNTIME_SECONDS: "780"
-    AGENT_IDLE_AFTER_MAX_RUNTIME: "true"
+    AGENT_MAX_RUNTIME_SECONDS: "0"
+    AGENT_IDLE_AFTER_MAX_RUNTIME: "false"
     TARGET_NAMESPACE: "otel-demo"
     AGENT_SCOPE_NAMESPACE: "otel-demo"
 

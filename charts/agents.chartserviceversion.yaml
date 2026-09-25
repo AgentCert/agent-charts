@@ -26,6 +26,10 @@ spec:
     name: AgentCert
   agents:
     - name: flash-agent
+      compatibleApplications:
+        - sock-shop
+        - bookinfo
+        - otel-demo
       displayName: Flash Agent
       description: "AI-powered log analysis agent that extracts metrics from Kubernetes pod logs using LLM and reports to Langfuse."
       version: "1.0.0"
@@ -45,43 +49,14 @@ spec:
           source: "{{workflow.uid}}"
         - helmPath: "agent.config.WORKFLOW_NAME"
           source: "{{workflow.labels.subject}}"
-    - name: k8s-agent
-      displayName: K8s Agent
-      description: "Kubernetes fault detection and autonomous remediation agent that monitors cluster health and auto-fixes issues."
-      version: "1.0.0"
-      capabilities:
-        - fault-detection
-        - auto-remediation
-      installTemplateName: "install-agent"
-      installImage: "agentcert/agentcert-install-agent:latest"
-      contextInjection:
-        - helmPath: "agent.config.EXPERIMENT_ID"
-          source: "{{workflow.labels.workflow_id}}"
-        - helmPath: "agent.config.EXPERIMENT_RUN_ID"
-          source: "{{workflow.uid}}"
-        - helmPath: "agent.config.WORKFLOW_NAME"
-          source: "{{workflow.labels.subject}}"
-    - name: sre-agent
-      displayName: SRE Agent
-      description: "SRE Incident Diagnosis Agent using ITBench offline snapshot mode for Kubernetes fault analysis."
-      version: "0.1.0"
-      capabilities:
-        - fault-diagnosis
-        - itbench-sre
-        - offline-snapshot
-      installTemplateName: "install-agent"
-      installImage: "agentcert/agentcert-install-agent:latest"
-      contextInjection:
-        - helmPath: "agent.config.EXPERIMENT_ID"
-          source: "{{workflow.labels.workflow_id}}"
-        - helmPath: "agent.config.EXPERIMENT_RUN_ID"
-          source: "{{workflow.uid}}"
-        - helmPath: "agent.config.WORKFLOW_NAME"
-          source: "{{workflow.labels.subject}}"
     - name: sre-agent-comprehensive
       displayName: SRE Agent (Comprehensive)
       description: "SRE Comprehensive Fault Remediation Agent — live Kubernetes mode via MCP tools for observe-and-remediate workflows."
       version: "0.1.0"
+      compatibleApplications:
+        - sock-shop
+        - bookinfo
+        - otel-demo
       capabilities:
         - fault-detection
         - auto-remediation
@@ -105,42 +80,10 @@ spec:
         - crewai
         - live-k8s
         - mcp
-      installTemplateName: "install-agent"
-      installImage: "agentcert/agentcert-install-agent:latest"
-      contextInjection:
-        - helmPath: "agent.config.EXPERIMENT_ID"
-          source: "{{workflow.labels.workflow_id}}"
-        - helmPath: "agent.config.EXPERIMENT_RUN_ID"
-          source: "{{workflow.uid}}"
-        - helmPath: "agent.config.WORKFLOW_NAME"
-          source: "{{workflow.labels.subject}}"
-    - name: ciso-agent
-      displayName: CISO Agent
-      description: "CISO Compliance Automation Agent using LangGraph and CrewAI for Kubernetes security and compliance evaluation."
-      version: "0.1.0"
-      capabilities:
-        - ciso-compliance
-        - langgraph
-        - crewai
-        - kyverno
-        - opa
-      installTemplateName: "install-agent"
-      installImage: "agentcert/agentcert-install-agent:latest"
-      contextInjection:
-        - helmPath: "agent.config.EXPERIMENT_ID"
-          source: "{{workflow.labels.workflow_id}}"
-        - helmPath: "agent.config.EXPERIMENT_RUN_ID"
-          source: "{{workflow.uid}}"
-        - helmPath: "agent.config.WORKFLOW_NAME"
-          source: "{{workflow.labels.subject}}"
-    - name: generic-agent
-      displayName: Generic Agent
-      description: "MCP-driven Kubernetes analysis agent: discovers tools, runs a ReAct loop, and emits a structured health analysis with remediation guidance."
-      version: "1.0.0"
-      capabilities:
-        - fault-detection
-        - live-k8s
-        - mcp
+      compatibleApplications:
+        - sock-shop
+        - bookinfo
+        - otel-demo
       installTemplateName: "install-agent"
       installImage: "agentcert/agentcert-install-agent:latest"
       contextInjection:

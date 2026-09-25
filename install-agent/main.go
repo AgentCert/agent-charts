@@ -48,6 +48,44 @@ type Config struct {
 // this type appends each occurrence so all --set values are preserved.
 type setFlags []string
 
+func isSensitiveHelmKey(key string) bool {
+	normalized := strings.ToLower(strings.ReplaceAll(key, "-", "_"))
+	for _, marker := range []string{"password", "secret", "token", "api_key", "apikey", "credential", "private_key"} {
+		if strings.Contains(normalized, marker) {
+			return true
+		}
+	}
+	return false
+}
+
+func redactHelmSetValue(value string) string {
+	key, _, found := strings.Cut(value, "=")
+	if found && isSensitiveHelmKey(key) {
+		return key + "=<redacted>"
+	}
+	return value
+}
+
+func formatHelmArgs(args []string) string {
+	safe := append([]string(nil), args...)
+	for i := 0; i < len(safe); i++ {
+		switch safe[i] {
+		case "--set", "--set-string", "--set-json":
+			if i+1 < len(safe) {
+				safe[i+1] = redactHelmSetValue(safe[i+1])
+				i++
+			}
+		default:
+			for _, prefix := range []string{"--set=", "--set-string=", "--set-json="} {
+				if strings.HasPrefix(safe[i], prefix) {
+					safe[i] = prefix + redactHelmSetValue(strings.TrimPrefix(safe[i], prefix))
+				}
+			}
+		}
+	}
+	return strings.Join(safe, " ")
+}
+
 func (s *setFlags) String() string { return strings.Join(*s, ",") }
 func (s *setFlags) Set(val string) error {
 	*s = append(*s, val)
@@ -258,7 +296,7 @@ func installChart(config *Config) error {
 		args = append(args, "--kube-context", config.KubeContext)
 	}
 
-	nextStep("Running: helm %s", strings.Join(args, " "))
+	nextStep("Running: helm %s", formatHelmArgs(args))
 
 	cmd := exec.Command("helm", args...)
 	cmd.Stdout = os.Stdout
@@ -272,7 +310,7 @@ func installChart(config *Config) error {
 	// built-in wait which suffers from client-go rate limiter bugs in v3.14
 	if config.Wait {
 		nextStep("Waiting for deployments to be ready")
-		if err := waitForDeployments(config.Namespace, config.Timeout); err != nil {
+		if err := waitForDeployments(config.Namespace, config.ReleaseName, config.Timeout); err != nil {
 			return fmt.Errorf("deployments not ready: %w", err)
 		}
 	}
@@ -280,31 +318,116 @@ func installChart(config *Config) error {
 	return nil
 }
 
-// waitForDeployments waits for all deployments in the namespace to be ready
-// using kubectl rollout status, which doesn't suffer from Helm's rate limiter bug.
-func waitForDeployments(namespace, timeout string) error {
+// releaseDeployments returns only Deployments owned by the Helm release.
+// Failure is explicit: falling back to every Deployment in a shared namespace
+// makes agent readiness depend on unrelated application workloads.
+func releaseDeployments(namespace, releaseName string) ([]string, error) {
+	if releaseName == "" {
+		return nil, fmt.Errorf("release name is required for readiness")
+	}
+	out, err := exec.Command("helm", "get", "manifest", releaseName, "-n", namespace).CombinedOutput()
+	if err != nil {
+		return nil, fmt.Errorf("read manifest for release %s: %w: %s",
+			releaseName, err, strings.TrimSpace(string(out)))
+	}
+
+	deployments := deploymentNamesFromManifest(out)
+	if len(deployments) == 0 {
+		return nil, fmt.Errorf("release %s contains no Deployment to verify", releaseName)
+	}
+	return deployments, nil
+}
+
+func deploymentNamesFromManifest(manifest []byte) []string {
+	var deployments []string
+	for _, doc := range strings.Split(string(manifest), "---") {
+		var kind, name string
+		inMetadata := false
+		for _, line := range strings.Split(doc, "\n") {
+			trimmed := strings.TrimSpace(line)
+			topLevel := !strings.HasPrefix(line, " ") && !strings.HasPrefix(line, "\t")
+			if topLevel && strings.HasPrefix(trimmed, "kind:") {
+				kind = strings.Trim(strings.TrimSpace(strings.TrimPrefix(trimmed, "kind:")), `"'`)
+				continue
+			}
+			if topLevel && trimmed == "metadata:" {
+				inMetadata = true
+				continue
+			}
+			if inMetadata && topLevel {
+				inMetadata = false
+			}
+			if inMetadata && strings.HasPrefix(trimmed, "name:") {
+				indent := len(line) - len(strings.TrimLeft(line, " \t"))
+				if indent <= 4 && name == "" {
+					name = strings.Trim(strings.TrimSpace(strings.TrimPrefix(trimmed, "name:")), `"'`)
+				}
+			}
+		}
+		if kind == "Deployment" && name != "" {
+			deployments = append(deployments, name)
+		}
+	}
+	return deployments
+}
+
+// explainNotReady reports why a Deployment's pods are not running, so a failure
+// surfaces its actual cause instead of only a rollout timeout. Best-effort: any
+// lookup failure just yields an empty string.
+func explainNotReady(namespace, deployment string) string {
+	// Match pods by name prefix rather than by label selector: every chart here
+	// names its pods after the Deployment, and it avoids parsing an arbitrary
+	// selector out of the Deployment spec.
+	out, err := exec.Command("kubectl", "get", "pods", "-n", namespace,
+		"-o", `jsonpath={range .items[*]}{.metadata.name}{"|"}{range .status.containerStatuses[*]}{.name}{"="}{.state.waiting.reason}{":"}{.state.waiting.message}{";"}{end}{"\n"}{end}`).Output()
+	if err != nil {
+		return ""
+	}
+
+	var reasons []string
+	for _, line := range strings.Split(string(out), "\n") {
+		if !strings.HasPrefix(line, deployment+"-") {
+			continue
+		}
+		parts := strings.SplitN(line, "|", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		for _, container := range strings.Split(parts[1], ";") {
+			if container == "" || strings.Contains(container, "=:") {
+				continue
+			}
+			reasons = append(reasons, strings.TrimSpace(container))
+		}
+	}
+	if len(reasons) == 0 {
+		return ""
+	}
+	return strings.Join(reasons, " | ")
+}
+
+// waitForDeployments waits for the Deployments owned by releaseName to be ready,
+// using kubectl rollout status (Helm's own --wait hits a client-go rate limiter
+// bug in v3.14).
+//
+// Scoping to the release matters: the agent is installed into the *application's*
+// namespace, so waiting on every Deployment there made this step's success depend
+// on all ~15 unrelated application workloads. A single unhealthy application pod
+// failed the agent install, and an agent that was itself fine still waited on
+// them all.
+func waitForDeployments(namespace, releaseName, timeout string) error {
 	if timeout == "" {
 		timeout = "15m"
 	}
 
-	log.Printf("Waiting for all deployments in namespace %s to be ready (timeout: %s)...", namespace, timeout)
-
-	// Get list of deployments
-	listCmd := exec.Command("kubectl", "get", "deployments", "-n", namespace, "-o", "jsonpath={.items[*].metadata.name}")
-	out, err := listCmd.Output()
+	deployments, err := releaseDeployments(namespace, releaseName)
 	if err != nil {
-		return fmt.Errorf("failed to list deployments: %w", err)
+		return err
 	}
 
-	deployments := strings.Fields(string(out))
-	if len(deployments) == 0 {
-		log.Printf("No deployments found in namespace %s, skipping wait", namespace)
-		return nil
-	}
+	log.Printf("Waiting for %d deployment(s) of release %s: %s (timeout: %s)",
+		len(deployments), releaseName, strings.Join(deployments, ", "), timeout)
 
-	log.Printf("Found %d deployments: %s", len(deployments), strings.Join(deployments, ", "))
-
-	// Wait for each deployment
 	for _, dep := range deployments {
 		log.Printf("Waiting for deployment %s...", dep)
 		waitCmd := exec.Command("kubectl", "rollout", "status", "deployment/"+dep,
@@ -312,12 +435,15 @@ func waitForDeployments(namespace, timeout string) error {
 		waitCmd.Stdout = os.Stdout
 		waitCmd.Stderr = os.Stderr
 		if err := waitCmd.Run(); err != nil {
+			if why := explainNotReady(namespace, dep); why != "" {
+				return fmt.Errorf("deployment %s not ready: %s", dep, why)
+			}
 			return fmt.Errorf("deployment %s not ready: %w", dep, err)
 		}
 		log.Printf("Deployment %s is ready", dep)
 	}
 
-	log.Printf("All deployments in namespace %s are ready", namespace)
+	log.Printf("All deployments of release %s are ready", releaseName)
 	return nil
 }
 
@@ -389,7 +515,7 @@ func adoptExistingResources(config *Config) error {
 		args = append(args, "--set", escapeHelmSetValue(setValue))
 	}
 
-	log.Printf("Discovering chart resources via: helm %s", strings.Join(args, " "))
+	log.Printf("Discovering chart resources via: helm %s", formatHelmArgs(args))
 
 	cmd := exec.Command("helm", args...)
 	out, err := cmd.Output()
@@ -677,7 +803,7 @@ func helmUpgradeWithAgentID(config *Config, agentID string) error {
 		args = append(args, "--kube-context", config.KubeContext)
 	}
 
-	log.Printf("Injecting agentId into helm release: helm %s", strings.Join(args, " "))
+	log.Printf("Injecting agentId into helm release: helm %s", formatHelmArgs(args))
 	cmd := exec.Command("helm", args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -688,7 +814,7 @@ func helmUpgradeWithAgentID(config *Config, agentID string) error {
 	// Wait for the deployment rollout so the pod with AGENT_ID is running
 	// before the workflow proceeds to chaos fault steps.
 	log.Printf("Waiting for deployment rollout after agentId injection...")
-	return waitForDeployments(config.Namespace, config.Timeout)
+	return waitForDeployments(config.Namespace, config.ReleaseName, config.Timeout)
 }
 
 // readChartField reads a top-level string field (e.g. "name" or "version")
@@ -728,7 +854,7 @@ func uninstallChart(config *Config) error {
 		args = append(args, "--kube-context", config.KubeContext)
 	}
 
-	log.Printf("Executing: helm %s", strings.Join(args, " "))
+	log.Printf("Executing: helm %s", formatHelmArgs(args))
 	cmd := exec.Command("helm", args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr

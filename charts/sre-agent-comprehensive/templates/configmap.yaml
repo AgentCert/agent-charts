@@ -54,8 +54,8 @@ data:
   SCAN_QUERY: {{ .Values.agent.config.SCAN_QUERY | quote }}
   {{- end }}
   TARGET_NAMESPACE: {{ .Values.agent.config.TARGET_NAMESPACE | default .Values.agent.config.AGENT_SCOPE_NAMESPACE | default "" | quote }}
-  AGENT_MAX_RUNTIME_SECONDS: {{ .Values.agent.config.AGENT_MAX_RUNTIME_SECONDS | default "780" | quote }}
-  AGENT_IDLE_AFTER_MAX_RUNTIME: {{ .Values.agent.config.AGENT_IDLE_AFTER_MAX_RUNTIME | default "true" | quote }}
+  AGENT_MAX_RUNTIME_SECONDS: {{ .Values.agent.config.AGENT_MAX_RUNTIME_SECONDS | default "0" | quote }}
+  AGENT_IDLE_AFTER_MAX_RUNTIME: {{ .Values.agent.config.AGENT_IDLE_AFTER_MAX_RUNTIME | default "false" | quote }}
 
   # Agent goal — injected as AGENT_GOAL env var into the agent container
   {{- if .Values.agent.config.AGENT_GOAL }}
