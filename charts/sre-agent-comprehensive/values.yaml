@@ -55,7 +55,11 @@ sidecar:
     registry: docker.io
     repository: agentcert/agent-sidecar
     tag: latest
-    pullPolicy: Always
+    # IfNotPresent, not Always: setup builds this image from agent-sidecar/ and
+    # side-loads it into the cluster. Always would silently swap it for whatever
+    # Docker Hub's floating :latest is (possibly without CURRENT_FAULT_NAME
+    # stamping) and break offline runs.
+    pullPolicy: IfNotPresent
   port: 4001
   # The real LiteLLM proxy URL — sidecar forwards enriched requests here
   upstream: "http://litellm.ace.svc.cluster.local:14000"

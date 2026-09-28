@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 )
@@ -318,57 +319,50 @@ func installChart(config *Config) error {
 	return nil
 }
 
-// releaseDeployments returns only Deployments owned by the Helm release.
-// Failure is explicit: falling back to every Deployment in a shared namespace
-// makes agent readiness depend on unrelated application workloads.
+// releaseDeployments returns only Deployments owned by the Helm release, read
+// from the meta.helm.sh/release-name annotation Helm stamps on every object it
+// creates. Failure is explicit: falling back to every Deployment in a shared
+// namespace makes agent readiness depend on unrelated application workloads.
 func releaseDeployments(namespace, releaseName string) ([]string, error) {
 	if releaseName == "" {
 		return nil, fmt.Errorf("release name is required for readiness")
 	}
-	out, err := exec.Command("helm", "get", "manifest", releaseName, "-n", namespace).CombinedOutput()
+	out, err := exec.Command("kubectl", "get", "deployments", "-n", namespace, "-o", "json").Output()
 	if err != nil {
-		return nil, fmt.Errorf("read manifest for release %s: %w: %s",
-			releaseName, err, strings.TrimSpace(string(out)))
+		return nil, fmt.Errorf("list deployments in namespace %s: %w", namespace, err)
 	}
-
-	deployments := deploymentNamesFromManifest(out)
+	deployments, err := releaseDeploymentNames(out, releaseName)
+	if err != nil {
+		return nil, err
+	}
 	if len(deployments) == 0 {
 		return nil, fmt.Errorf("release %s contains no Deployment to verify", releaseName)
 	}
 	return deployments, nil
 }
 
-func deploymentNamesFromManifest(manifest []byte) []string {
-	var deployments []string
-	for _, doc := range strings.Split(string(manifest), "---") {
-		var kind, name string
-		inMetadata := false
-		for _, line := range strings.Split(doc, "\n") {
-			trimmed := strings.TrimSpace(line)
-			topLevel := !strings.HasPrefix(line, " ") && !strings.HasPrefix(line, "\t")
-			if topLevel && strings.HasPrefix(trimmed, "kind:") {
-				kind = strings.Trim(strings.TrimSpace(strings.TrimPrefix(trimmed, "kind:")), `"'`)
-				continue
-			}
-			if topLevel && trimmed == "metadata:" {
-				inMetadata = true
-				continue
-			}
-			if inMetadata && topLevel {
-				inMetadata = false
-			}
-			if inMetadata && strings.HasPrefix(trimmed, "name:") {
-				indent := len(line) - len(strings.TrimLeft(line, " \t"))
-				if indent <= 4 && name == "" {
-					name = strings.Trim(strings.TrimSpace(strings.TrimPrefix(trimmed, "name:")), `"'`)
-				}
-			}
-		}
-		if kind == "Deployment" && name != "" {
-			deployments = append(deployments, name)
+// releaseDeploymentNames picks, from a `kubectl get deployments -o json` List,
+// the names whose meta.helm.sh/release-name annotation equals releaseName.
+func releaseDeploymentNames(listJSON []byte, releaseName string) ([]string, error) {
+	var list struct {
+		Items []struct {
+			Metadata struct {
+				Name        string            `json:"name"`
+				Annotations map[string]string `json:"annotations"`
+			} `json:"metadata"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(listJSON, &list); err != nil {
+		return nil, fmt.Errorf("parse deployment list: %w", err)
+	}
+	var names []string
+	for _, item := range list.Items {
+		if item.Metadata.Name != "" && item.Metadata.Annotations["meta.helm.sh/release-name"] == releaseName {
+			names = append(names, item.Metadata.Name)
 		}
 	}
-	return deployments
+	sort.Strings(names)
+	return names, nil
 }
 
 // explainNotReady reports why a Deployment's pods are not running, so a failure

@@ -34,7 +34,18 @@ agent:
     MCP_TIMEOUT: "30"
 
     # --- Scan Configuration ---
-    SCAN_INTERVAL: "0"        # 0 = run once (CronJob mode), >0 = continuous loop
+    # This chart installs a Deployment that lives for the whole Argo workflow
+    # (install app -> install agent -> N faults -> onExit uninstall), so it must
+    # scan continuously until the cleanup step's SIGTERM. >0 = scan every N
+    # seconds and never exit on its own (a clean scan or an MCP/LLM outage does
+    # not end the process); 0 = legacy one-shot, which in a Deployment just
+    # means exit -> restart -> CrashLoopBackOff with faults left unobserved.
+    SCAN_INTERVAL: "60"
+    # Outer scan-cycle cap. "0" = unlimited (continuous); any >0 cap makes the
+    # process exit after that many scans, i.e. a mid-workflow pod restart.
+    MAX_ITERATIONS: "0"
+    # Cap (seconds) on the retry backoff while MCP/LLM is unavailable.
+    AGENT_RETRY_BACKOFF_MAX_SECONDS: "120"
     # SCAN_QUERY: ""          # Optional custom query; defaults to generic MCP analysis
 
     # --- Target Scope ---

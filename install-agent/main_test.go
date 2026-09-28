@@ -6,51 +6,27 @@ import (
 	"testing"
 )
 
-func TestDeploymentNamesFromManifest(t *testing.T) {
-	manifest := []byte(`apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: "agent-release"
-spec:
-  template:
-    metadata:
-      name: must-not-replace-object-name
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: agent-service
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: sidecar-release
-`)
+func TestReleaseDeploymentNames(t *testing.T) {
+	list := []byte(`{"items":[
+	  {"metadata":{"name":"agent-release","annotations":{"meta.helm.sh/release-name":"flash-agent"}}},
+	  {"metadata":{"name":"front-end","annotations":{"meta.helm.sh/release-name":"sock-shop"}}},
+	  {"metadata":{"name":"sidecar-release","annotations":{"meta.helm.sh/release-name":"flash-agent"}}},
+	  {"metadata":{"name":"unmanaged"}}
+	]}`)
 
-	got := deploymentNamesFromManifest(manifest)
+	got, err := releaseDeploymentNames(list, "flash-agent")
+	if err != nil {
+		t.Fatalf("releaseDeploymentNames() error = %v", err)
+	}
 	want := []string{"agent-release", "sidecar-release"}
 	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("deploymentNamesFromManifest() = %#v, want %#v", got, want)
+		t.Fatalf("releaseDeploymentNames() = %#v, want %#v", got, want)
 	}
 }
 
-func TestDeploymentNamesFromManifestRejectsNestedKind(t *testing.T) {
-	manifest := []byte(`apiVersion: batch/v1
-kind: Job
-metadata:
-  name: installer
-spec:
-  template:
-    spec:
-      containers:
-        - name: worker
-          env:
-            - name: kind
-              value: Deployment
-`)
-
-	if got := deploymentNamesFromManifest(manifest); len(got) != 0 {
-		t.Fatalf("deploymentNamesFromManifest() = %#v, want no deployments", got)
+func TestReleaseDeploymentNamesRejectsMalformedList(t *testing.T) {
+	if _, err := releaseDeploymentNames([]byte("kind: Deployment"), "flash-agent"); err == nil {
+		t.Fatal("releaseDeploymentNames() accepted a non-JSON list")
 	}
 }
 
