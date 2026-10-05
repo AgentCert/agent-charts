@@ -74,6 +74,23 @@ spec:
               value: {{ .Values.agent.config.SCAN_QUERY | quote }}
             {{- end }}
 
+            # Bound the scan loop to the experiment window (set per run by
+            # the graphql server; see configmap.yaml and __main__.py).
+            {{- if .Values.agent.config.AGENT_MAX_RUNTIME_SECONDS }}
+            - name: AGENT_MAX_RUNTIME_SECONDS
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ .Values.agent.name }}-metadata
+                  key: AGENT_MAX_RUNTIME_SECONDS
+            {{- end }}
+            {{- if .Values.agent.config.AGENT_IDLE_AFTER_MAX_RUNTIME }}
+            - name: AGENT_IDLE_AFTER_MAX_RUNTIME
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ .Values.agent.name }}-metadata
+                  key: AGENT_IDLE_AFTER_MAX_RUNTIME
+            {{- end }}
+
             # Scope override — when set, skips MCP scope auto-discovery and
             # forces the agent to operate within this namespace. Leave unset
             # to auto-discover from the MCP server itself.

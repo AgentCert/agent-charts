@@ -12,7 +12,7 @@ metadata:
 data:
   # Agent Identity (used by sidecar for tracing)
   AGENT_NAME: {{ .Values.agent.name | quote }}
-  AGENT_ID: {{ .Values.agent.id | default "" | quote }}
+  AGENT_ID: {{ .Values.agent.config.AGENT_ID | default .Values.agentId | default .Values.agent.id | default "" | quote }}
   AGENT_ROLE: {{ .Values.agent.role | default "observer" | quote }}
   AGENT_VERSION: {{ .Values.agent.version | quote }}
   
