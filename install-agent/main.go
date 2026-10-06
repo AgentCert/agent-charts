@@ -42,6 +42,11 @@ type Config struct {
 	// The UUID is then injected back via helm upgrade --set agentId=<uuid>.
 	ServerAddr string
 	ProjectID  string
+
+	// ValuesJSON is the -values-json document; ValuesJSONFile is where it is
+	// written for Helm (see values.go).
+	ValuesJSON     string
+	ValuesJSONFile string
 }
 
 // setFlags implements flag.Value to accumulate multiple --set flags.
@@ -126,6 +131,15 @@ func main() {
 		log.Fatalf("Configuration error: %v", err)
 	}
 
+	if config.ValuesJSON != "" {
+		path, err := writeValuesJSON(config.ValuesJSON)
+		if err != nil {
+			log.Fatalf("Configuration error: %v", err)
+		}
+		defer os.Remove(path)
+		config.ValuesJSONFile = path
+	}
+
 	if err := installChart(config); err != nil {
 		log.Fatalf("Installation failed: %v", err)
 	}
@@ -150,6 +164,7 @@ func parseFlags() *Config {
 	flag.StringVar(&config.Namespace, "namespace", defaultNamespace, "Kubernetes namespace to install into")
 	flag.StringVar(&config.ChartsPath, "charts-path", defaultChartsPath, "Base path where charts are located")
 	flag.StringVar(&config.ValuesFile, "values", "", "Path to custom values file")
+	flag.StringVar(&config.ValuesJSON, "values-json", "", "Chart settings as a JSON values document, applied after -values and before --set")
 	flag.Var(&config.SetValues, "set", "Set values on command line (can be repeated: --set key=value --set key2=value2)")
 	flag.BoolVar(&config.DryRun, "dry-run", false, "Simulate installation without applying")
 	flag.BoolVar(&config.Wait, "wait", true, "Wait for resources to be ready")
@@ -268,13 +283,7 @@ func installChart(config *Config) error {
 
 	// Namespace is pre-created by ensureNamespace(), no need for --create-namespace
 
-	if config.ValuesFile != "" {
-		args = append(args, "-f", config.ValuesFile)
-	}
-
-	for _, setValue := range config.SetValues {
-		args = append(args, "--set", escapeHelmSetValue(setValue))
-	}
+	args = append(args, helmValuesArgs(config)...)
 
 	if config.DryRun {
 		args = append(args, "--dry-run")
@@ -500,14 +509,7 @@ func adoptExistingResources(config *Config) error {
 
 	// Build helm template command with the same args as the actual install
 	args := []string{"template", config.ReleaseName, chartPath, "--namespace", config.Namespace}
-
-	if config.ValuesFile != "" {
-		args = append(args, "-f", config.ValuesFile)
-	}
-
-	for _, setValue := range config.SetValues {
-		args = append(args, "--set", escapeHelmSetValue(setValue))
-	}
+	args = append(args, helmValuesArgs(config)...)
 
 	log.Printf("Discovering chart resources via: helm %s", formatHelmArgs(args))
 

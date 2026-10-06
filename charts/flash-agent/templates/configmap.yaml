@@ -39,25 +39,6 @@ data:
   {{- else }}
   OPENAI_BASE_URL: {{ .Values.agent.config.OPENAI_BASE_URL | quote }}
   {{- end }}
-  MODEL_ALIAS: {{ .Values.agent.config.MODEL_ALIAS | quote }}
-  {{- if .Values.agent.config.AZURE_API_VERSION }}
-  AZURE_API_VERSION: {{ .Values.agent.config.AZURE_API_VERSION | quote }}
-  {{- end }}
-
-  # MCP Configuration
-  MCP_URLS: {{ .Values.agent.config.MCP_URLS | quote }}
-  {{- if .Values.agent.config.MCP_TIMEOUT }}
-  MCP_TIMEOUT: {{ .Values.agent.config.MCP_TIMEOUT | quote }}
-  {{- end }}
-
-  # Scan Configuration
-  {{- if .Values.agent.config.SCAN_INTERVAL }}
-  SCAN_INTERVAL: {{ .Values.agent.config.SCAN_INTERVAL | quote }}
-  {{- end }}
-  {{- if .Values.agent.config.SCAN_QUERY }}
-  SCAN_QUERY: {{ .Values.agent.config.SCAN_QUERY | quote }}
-  {{- end }}
-
   # Everything else, verbatim. The control plane injects ~40 --set
   # agent.config.* values per run (AGENT_MODE, MITIGATION_*, TARGET_NAMESPACE,
   # EXPERIMENT_ID, LANGFUSE_*, ...); enumerating keys here silently dropped

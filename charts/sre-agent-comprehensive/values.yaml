@@ -36,6 +36,10 @@ agent:
     AGENT_SCOPE_NAMESPACE: "otel-demo"
 
     # Goal passed to the agent at startup (read as AGENT_GOAL env var)
+    # Sampling temperature and tool-loop step budget (the agent's own defaults).
+    SRE_AGENT_TEMPERATURE: "0.2"
+    SRE_AGENT_MAX_STEPS: "40"
+
     AGENT_GOAL: "Diagnose and remediate all active faults in the Kubernetes cluster. Identify every affected resource, determine root causes, apply remediations, and verify that all services return to a healthy state."
 
   secret:
@@ -87,3 +91,61 @@ rbac:
       - apiGroups: ["apps"]
         resources: ["deployments", "replicasets", "statefulsets"]
         verbs: ["get", "list", "watch"]
+
+# ── Experiment builder settings ──────────────────────────────────────
+# The values above that the ACE experiment builder lets a user change when
+# this agent is added to an experiment. Each key is a path in this file and
+# the value found there is the setting's default. No template reads this
+# block, so Helm ignores it. Values the platform writes on every install
+# (identity, MCP wiring, tracing, the sidecar, the agent mode) and secrets
+# cannot be listed: the server rejects them (AgentCert pkg/chartconfig).
+configurations:
+  - key: agent.config.MODEL_ALIAS
+    label: LLM model
+    description: The model the agent reasons with. Leave it on the platform default unless you are comparing models.
+    type: model
+    group: LLM
+  - key: agent.config.SRE_AGENT_TEMPERATURE
+    label: Temperature
+    type: number
+    min: 0
+    max: 2
+    group: LLM
+    advanced: true
+  - key: agent.config.AGENT_GOAL
+    label: Goal
+    description: The task the agent is given at startup.
+    type: text
+    required: true
+    group: Behaviour
+  - key: agent.config.SCAN_INTERVAL
+    label: Scan interval (seconds)
+    description: Time between scans. The agent keeps scanning until the experiment ends.
+    type: integer
+    min: 1
+    group: Behaviour
+  - key: agent.config.SRE_AGENT_MAX_STEPS
+    label: Max tool steps per scan
+    type: integer
+    min: 1
+    max: 200
+    group: Behaviour
+    advanced: true
+  - key: agent.config.MCP_TIMEOUT
+    label: MCP tool timeout (seconds)
+    type: integer
+    min: 1
+    group: Behaviour
+    advanced: true
+  - key: resources.limits.cpu
+    label: CPU limit
+    type: string
+    pattern: "^[0-9]+([.][0-9]+)?m?$"
+    group: Resources
+    advanced: true
+  - key: resources.limits.memory
+    label: Memory limit
+    type: string
+    pattern: "^[1-9][0-9]*([.][0-9]+)?(Mi|Gi)$"
+    group: Resources
+    advanced: true

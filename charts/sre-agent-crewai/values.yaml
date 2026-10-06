@@ -92,3 +92,47 @@ rbac:
       - apiGroups: ["apps"]
         resources: ["deployments", "replicasets", "statefulsets"]
         verbs: ["get", "list", "watch"]
+
+# ── Experiment builder settings ──────────────────────────────────────
+# The values above that the ACE experiment builder lets a user change when
+# this agent is added to an experiment. Each key is a path in this file and
+# the value found there is the setting's default. No template reads this
+# block, so Helm ignores it. Values the platform writes on every install
+# (identity, MCP wiring, tracing, the sidecar, the agent mode) and secrets
+# cannot be listed: the server rejects them (AgentCert pkg/chartconfig).
+configurations:
+  - key: agent.config.MODEL_ALIAS
+    label: LLM model
+    description: The model the agent reasons with. Leave it on the platform default unless you are comparing models.
+    type: model
+    group: LLM
+  - key: agent.config.GOAL
+    label: Goal
+    description: The task the agent is given at startup.
+    type: text
+    required: true
+    group: Behaviour
+  - key: agent.config.SCAN_INTERVAL
+    label: Scan interval (seconds)
+    description: Time between scans. The agent keeps scanning until the experiment ends.
+    type: integer
+    min: 1
+    group: Behaviour
+  - key: agent.config.MCP_TIMEOUT
+    label: MCP tool timeout (seconds)
+    type: integer
+    min: 1
+    group: Behaviour
+    advanced: true
+  - key: resources.limits.cpu
+    label: CPU limit
+    type: string
+    pattern: "^[0-9]+([.][0-9]+)?m?$"
+    group: Resources
+    advanced: true
+  - key: resources.limits.memory
+    label: Memory limit
+    type: string
+    pattern: "^[1-9][0-9]*([.][0-9]+)?(Mi|Gi)$"
+    group: Resources
+    advanced: true

@@ -24,6 +24,10 @@ agent:
     # (below) is what actually reaches LiteLLM.
     OPENAI_BASE_URL: "http://litellm.ace.svc.cluster.local:14000/v1"
     MODEL_ALIAS: "gpt-4o"
+    # LLM client timeout and retries. Raise the timeout for slow, locally
+    # served open-weight models (a single completion can take minutes on CPU).
+    LLM_REQUEST_TIMEOUT: "120"
+    LLM_MAX_RETRIES: "2"
     # AZURE_API_VERSION: "2025-04-01-preview"  # Only needed for Azure OpenAI
 
     # --- MCP Configuration (required) ---
@@ -47,6 +51,9 @@ agent:
     # Cap (seconds) on the retry backoff while MCP/LLM is unavailable.
     AGENT_RETRY_BACKOFF_MAX_SECONDS: "120"
     # SCAN_QUERY: ""          # Optional custom query; defaults to generic MCP analysis
+    # The instruction the agent works from on every scan (the agent's own default).
+    SCAN_QUERY: "Analyse the data from MCP tools and provide insights."
+    LOG_LEVEL: "INFO"
 
     # --- Target Scope ---
     # The namespace this agent operates inside. The MCP servers in MCP_URLS are
@@ -99,3 +106,74 @@ rbac:
       - apiGroups: ["apps"]
         resources: ["deployments", "replicasets", "statefulsets"]
         verbs: ["get", "list", "watch"]
+
+# ── Experiment builder settings ──────────────────────────────────────
+# The values above that the ACE experiment builder lets a user change when
+# this agent is added to an experiment. Each key is a path in this file and
+# the value found there is the setting's default. No template reads this
+# block, so Helm ignores it. Values the platform writes on every install
+# (identity, MCP wiring, tracing, the sidecar, the agent mode) and secrets
+# cannot be listed: the server rejects them (AgentCert pkg/chartconfig).
+configurations:
+  - key: agent.config.MODEL_ALIAS
+    label: LLM model
+    description: The model the agent reasons with. Leave it on the platform default unless you are comparing models.
+    type: model
+    group: LLM
+  - key: agent.config.LLM_REQUEST_TIMEOUT
+    label: LLM request timeout (seconds)
+    description: Raise for slow, locally served open-weight models.
+    type: number
+    min: 1
+    group: LLM
+    advanced: true
+  - key: agent.config.LLM_MAX_RETRIES
+    label: LLM retries
+    type: integer
+    min: 0
+    max: 10
+    group: LLM
+    advanced: true
+  - key: agent.config.SCAN_INTERVAL
+    label: Scan interval (seconds)
+    description: Time between scans. The agent keeps scanning until the experiment ends.
+    type: integer
+    min: 1
+    group: Behaviour
+  - key: agent.config.SCAN_QUERY
+    label: Scan instruction
+    description: The instruction the agent works from on every scan.
+    type: text
+    required: true
+    group: Behaviour
+  - key: agent.config.MCP_TIMEOUT
+    label: MCP tool timeout (seconds)
+    type: integer
+    min: 1
+    group: Behaviour
+    advanced: true
+  - key: agent.config.AGENT_RETRY_BACKOFF_MAX_SECONDS
+    label: Max retry backoff (seconds)
+    description: Longest wait between retries while the LLM or the MCP servers are unavailable.
+    type: integer
+    min: 1
+    group: Behaviour
+    advanced: true
+  - key: agent.config.LOG_LEVEL
+    label: Log level
+    type: select
+    options: [DEBUG, INFO, WARNING, ERROR]
+    group: Behaviour
+    advanced: true
+  - key: resources.limits.cpu
+    label: CPU limit
+    type: string
+    pattern: "^[0-9]+([.][0-9]+)?m?$"
+    group: Resources
+    advanced: true
+  - key: resources.limits.memory
+    label: Memory limit
+    type: string
+    pattern: "^[1-9][0-9]*([.][0-9]+)?(Mi|Gi)$"
+    group: Resources
+    advanced: true

@@ -1,4 +1,4 @@
-{{- $reserved := list "OPENAI_BASE_URL" "AGENT_NAME" "AGENT_ID" "AGENT_ROLE" "AGENT_VERSION" "NOTIFY_ID" "SESSION_ID" "WORKFLOW_NAME" "WORKFLOW_UID" "CURRENT_FAULT_NAME" "TARGET_NAMESPACE" "AGENT_MAX_RUNTIME_SECONDS" "AGENT_IDLE_AFTER_MAX_RUNTIME" -}}
+{{- $reserved := list "OPENAI_BASE_URL" "AGENT_NAME" "AGENT_ID" "AGENT_ROLE" "AGENT_VERSION" "NOTIFY_ID" "SESSION_ID" "WORKFLOW_NAME" "WORKFLOW_UID" "CURRENT_FAULT_NAME" "TARGET_NAMESPACE" "AGENT_MAX_RUNTIME_SECONDS" "AGENT_IDLE_AFTER_MAX_RUNTIME" "EXPERIMENT_ID" "EXPERIMENT_RUN_ID" "LANGFUSE_HOST" -}}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -34,33 +34,10 @@ data:
   {{- else }}
   OPENAI_BASE_URL: {{ .Values.agent.config.OPENAI_BASE_URL | quote }}
   {{- end }}
-  MODEL_ALIAS: {{ .Values.agent.config.MODEL_ALIAS | quote }}
   LANGFUSE_HOST: {{ .Values.agent.config.LANGFUSE_HOST | default "" | quote }}
-  {{- if .Values.agent.config.AZURE_API_VERSION }}
-  AZURE_API_VERSION: {{ .Values.agent.config.AZURE_API_VERSION | quote }}
-  {{- end }}
-
-  # MCP Configuration
-  MCP_URLS: {{ .Values.agent.config.MCP_URLS | quote }}
-  {{- if .Values.agent.config.MCP_TIMEOUT }}
-  MCP_TIMEOUT: {{ .Values.agent.config.MCP_TIMEOUT | quote }}
-  {{- end }}
-
-  # Scan Configuration
-  {{- if .Values.agent.config.SCAN_INTERVAL }}
-  SCAN_INTERVAL: {{ .Values.agent.config.SCAN_INTERVAL | quote }}
-  {{- end }}
-  {{- if .Values.agent.config.SCAN_QUERY }}
-  SCAN_QUERY: {{ .Values.agent.config.SCAN_QUERY | quote }}
-  {{- end }}
   TARGET_NAMESPACE: {{ .Values.agent.config.TARGET_NAMESPACE | default .Values.agent.config.AGENT_SCOPE_NAMESPACE | default "" | quote }}
   AGENT_MAX_RUNTIME_SECONDS: {{ .Values.agent.config.AGENT_MAX_RUNTIME_SECONDS | default "0" | quote }}
   AGENT_IDLE_AFTER_MAX_RUNTIME: {{ .Values.agent.config.AGENT_IDLE_AFTER_MAX_RUNTIME | default "false" | quote }}
-
-  # Agent goal — injected as AGENT_GOAL env var into the agent container
-  {{- if .Values.agent.config.AGENT_GOAL }}
-  AGENT_GOAL: {{ .Values.agent.config.AGENT_GOAL | quote }}
-  {{- end }}
 
   # Everything else, verbatim. The control plane injects ~40 --set
   # agent.config.* values per run; enumerating keys above silently dropped every

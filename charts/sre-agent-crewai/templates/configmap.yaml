@@ -1,3 +1,4 @@
+{{- $reserved := list "OPENAI_BASE_URL" "AGENT_NAME" "AGENT_ID" "AGENT_ROLE" "AGENT_VERSION" "NOTIFY_ID" "WORKFLOW_NAME" "WORKFLOW_UID" "AGENT_MODE" -}}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -31,42 +32,11 @@ data:
   {{- else }}
   OPENAI_BASE_URL: {{ .Values.agent.config.OPENAI_BASE_URL | quote }}
   {{- end }}
-  MODEL_ALIAS: {{ .Values.agent.config.MODEL_ALIAS | quote }}
-  {{- if .Values.agent.config.AZURE_API_VERSION }}
-  AZURE_API_VERSION: {{ .Values.agent.config.AZURE_API_VERSION | quote }}
-  {{- end }}
-
-  # MCP Configuration
-  MCP_URLS: {{ .Values.agent.config.MCP_URLS | quote }}
-  {{- if .Values.agent.config.MCP_TIMEOUT }}
-  MCP_TIMEOUT: {{ .Values.agent.config.MCP_TIMEOUT | quote }}
-  {{- end }}
-
-  # Scan Configuration
-  {{- if .Values.agent.config.SCAN_INTERVAL }}
-  SCAN_INTERVAL: {{ .Values.agent.config.SCAN_INTERVAL | quote }}
-  {{- end }}
-  {{- if .Values.agent.config.SCAN_QUERY }}
-  SCAN_QUERY: {{ .Values.agent.config.SCAN_QUERY | quote }}
-  {{- end }}
-  # Injected per run by the graphql server (injectExperimentContextArgs):
-  # bound the scan loop to the experiment window, then idle until teardown.
-  {{- if .Values.agent.config.AGENT_MAX_RUNTIME_SECONDS }}
-  AGENT_MAX_RUNTIME_SECONDS: {{ .Values.agent.config.AGENT_MAX_RUNTIME_SECONDS | quote }}
-  {{- end }}
-  {{- if .Values.agent.config.AGENT_IDLE_AFTER_MAX_RUNTIME }}
-  AGENT_IDLE_AFTER_MAX_RUNTIME: {{ .Values.agent.config.AGENT_IDLE_AFTER_MAX_RUNTIME | quote }}
-  {{- end }}
-
-  # Investigation goal — read by sre_crewai's `--goal` CLI default (this
-  # entrypoint takes no CLI args when run under this chart; see __main__.py).
-  {{- if .Values.agent.config.GOAL }}
-  GOAL: {{ .Values.agent.config.GOAL | quote }}
-  {{- end }}
-
-  # AGENT_MODE: "observe" (default) = read-only, delete_k8s_resource is not
-  # registered as a tool at all; "active" = full toolset. Already set on
-  # every real ChaosCenter-driven install via injectExperimentContextArgs()
-  # in service.go (same env var flash-agent/k8s-agent use) — this key was
-  # simply never wired through before, so the value had nowhere to land.
   AGENT_MODE: {{ .Values.agent.config.AGENT_MODE | default "observe" | quote }}
+
+  # New agent.config settings reach the container without adding template entries.
+  {{- range $key, $value := .Values.agent.config }}
+  {{- if not (has $key $reserved) }}
+  {{ $key }}: {{ $value | quote }}
+  {{- end }}
+  {{- end }}

@@ -9,6 +9,8 @@ spec:
       app: {{ .Values.agent.name }}
   template:
     metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
       labels:
         app: {{ .Values.agent.name }}
     spec:
@@ -20,6 +22,10 @@ spec:
 
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
+
+          envFrom:
+            - configMapRef:
+                name: {{ .Values.agent.name }}-metadata
 
           env:
             # Agent identity

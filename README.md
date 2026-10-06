@@ -27,6 +27,7 @@ the agent (plus its identity-injection sidecar) into the target namespace.
 - [The `install-agent` CLI image](#the-install-agent-cli-image)
 - [LiteLLM manifests](#litellm-manifests)
 - [Installing an agent](#installing-an-agent)
+- [Settings in the experiment builder](#settings-in-the-experiment-builder)
 - [How it fits into AgentCert](#how-it-fits-into-agentcert)
 - [Versions](#versions)
 - [License](#license)
@@ -230,6 +231,78 @@ helm upgrade --install k8s-agent charts/k8s-agent \
    `{{workflow.labels.workflow_id}}` into `agent.config.EXPERIMENT_ID`).
 3. When a scenario installs the agent, ChaosCenter calls the `install-agent` image
    with the right `--folder`, namespace, and `--set` overrides.
+
+---
+
+## Settings in the experiment builder
+
+A chart can let users change some of its values from the AgentCert experiment
+builder. When a user adds the agent to an experiment, the builder shows a form
+for those values, and the user's choices are applied when the step installs the
+chart.
+
+List the values in a top-level `configurations` block of the chart's
+`values.yaml`. Each `key` must be a path that already exists in that file. The
+value found there is the setting's default, and its YAML type is the type the
+user's value is written back as, so a setting stored as `"60"` stays a string:
+
+```yaml
+agent:
+  config:
+    SCAN_INTERVAL: "60"
+configurations:
+  - key: agent.config.SCAN_INTERVAL
+    label: Scan interval (seconds)
+    description: Time between scans.
+    type: integer          # string | text | integer | number | boolean | select | model
+    min: 1                 # integer / number only; also max
+    group: Behaviour       # optional heading
+    advanced: false        # true: shown only under "Show advanced settings"
+```
+
+`required: true`, `options: [...]` (for `select`) and `pattern: "<regex>"` (for
+`string` and `text`) are also supported. No template reads the block, so Helm
+ignores it.
+
+**How the values reach Helm.** The builder writes the chosen values onto the
+install step as one argument, `-values-json=<JSON values document>`. The GraphQL
+server checks it against the chart's `configurations` on every save and run, and
+rejects any value the chart does not list. `install-agent` writes the document to
+a file and passes it to Helm after `-values` and before the `--set` values:
+chart default < user setting < platform value.
+The server removes template `--set` arguments for explicitly chosen settings
+before injecting platform values. The same settings are retained in manual,
+scheduled and multi-run workflows.
+Agent pod templates include a ConfigMap checksum so Helm upgrades restart pods
+when environment settings change. CPU and memory limits are available under
+the advanced resource settings.
+
+**Rules the server enforces** (AgentCert `graphql/server/pkg/chartconfig`):
+
+- A key must hold a single value (string, number or boolean), not a list or a map.
+- Secrets (`agent.secret.*`, keys named like `PASSWORD`, `TOKEN`, `API_KEY`) cannot
+  be listed: settings are stored in the experiment in plain text.
+- Values the platform writes on every install (agent identity, MCP URLs, tracing,
+  the sidecar, `AGENT_MODE`, and so on) cannot be listed. The exception is
+  `agent.config.MODEL_ALIAS` with `type: model`: the form offers the platform's
+  models, and "Platform default" (the starting value) leaves the model to the
+  platform. An explicit model override supplied through the run API still wins.
+- Only `agent.config` keys that the chart's templates pass to the container reach
+  the agent. `flash-agent`, `sre-agent-comprehensive` and `sre-agent-crewai`
+  pass every key; `ciso-agent` and `sre-agent` pass only the keys their
+  `configmap.yaml` names.
+
+**Check that a setting is actually used.** Declaring a value does not make a
+template read it. Run this from the monorepo root after changing a chart:
+
+```bash
+scripts/validate-chart-configurations.py          # every chart in both hubs
+scripts/validate-chart-configurations.py agent-charts/charts/flash-agent
+```
+
+It renders the chart with each setting changed and checks that the value
+reaches the manifests. For `agent.config` settings it also resolves container
+environment references, so an unused ConfigMap value cannot pass the check.
 
 ---
 
