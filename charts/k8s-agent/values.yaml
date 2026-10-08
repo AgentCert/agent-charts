@@ -4,6 +4,10 @@ app:
     projectId: litmus-project-1
     clusterId: cluster-1
 
+# Image-pull Secrets for every pod, e.g. [{name: registry-pull}] for a private
+# registry. ACE's installers add the secret automatically when IMAGE_REGISTRY is set.
+imagePullSecrets: []
+
 agent:
   name: k8s-agent
   version: "1.0.0"

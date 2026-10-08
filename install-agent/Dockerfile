@@ -1,5 +1,10 @@
 # Build stage
-FROM golang:1.21-alpine3.19 AS builder
+# Base images: upstream names by default (plain `docker build` works anywhere).
+# scripts/build-and-push.sh, setup.sh and prepare-images.sh pass the copy from
+# IMAGE_REGISTRY / the frozen agentcert/ Docker Hub copies (scripts/lib/registry.sh).
+ARG GOLANG_IMAGE=golang:1.21-alpine3.19
+ARG ALPINE_IMAGE=alpine:3.19
+FROM ${GOLANG_IMAGE} AS builder
 
 WORKDIR /app
 
@@ -17,7 +22,7 @@ COPY install-agent/ ./
 RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o install-agent .
 
 # Final stage
-FROM alpine:3.19
+FROM ${ALPINE_IMAGE}
 
 # Install helm and kubectl
 RUN apk add --no-cache \

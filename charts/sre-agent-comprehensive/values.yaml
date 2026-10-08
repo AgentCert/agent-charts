@@ -1,6 +1,10 @@
 # Agent identity — set at deploy time via: helm install --set agentId=<uuid>
 agentId: ""
 
+# Image-pull Secrets for every pod, e.g. [{name: registry-pull}] for a private
+# registry. ACE's installers add the secret automatically when IMAGE_REGISTRY is set.
+imagePullSecrets: []
+
 agent:
   name: sre-agent-comprehensive
   version: "1.0.0"
