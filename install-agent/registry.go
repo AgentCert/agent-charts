@@ -35,7 +35,7 @@ func runPostRenderIfRequested() bool {
 // postRendererArgs returns the helm flags and environment that run this binary
 // as the image post-renderer, or nil when graphql did not request it.
 func postRendererArgs() (args, env []string) {
-	if os.Getenv("ACE_IMAGE_REGISTRY") == "" && os.Getenv("ACE_IMAGE_MIRROR_NAMESPACE") == "" {
+	if os.Getenv("ACE_IMAGE_REGISTRY") == "" && os.Getenv("ACE_IMAGE_MIRROR_NAMESPACE") == "" && os.Getenv("ACE_IMAGE_TAG") == "" {
 		return nil, nil
 	}
 	self, err := os.Executable()
