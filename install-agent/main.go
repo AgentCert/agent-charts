@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 )
@@ -33,6 +34,7 @@ type Config struct {
 	Timeout     string
 	CreateNS    bool
 	Upgrade     bool
+	Delete      bool
 	KubeConfig  string
 	KubeContext string
 	// Registration: after helm install, call RegisterAgent on the GraphQL
@@ -40,12 +42,55 @@ type Config struct {
 	// The UUID is then injected back via helm upgrade --set agentId=<uuid>.
 	ServerAddr string
 	ProjectID  string
+
+	// ValuesJSON is the -values-json document; ValuesJSONFile is where it is
+	// written for Helm (see values.go).
+	ValuesJSON     string
+	ValuesJSONFile string
 }
 
 // setFlags implements flag.Value to accumulate multiple --set flags.
 // Go's flag package normally keeps only the last value for a flag;
 // this type appends each occurrence so all --set values are preserved.
 type setFlags []string
+
+func isSensitiveHelmKey(key string) bool {
+	normalized := strings.ToLower(strings.ReplaceAll(key, "-", "_"))
+	for _, marker := range []string{"password", "secret", "token", "api_key", "apikey", "credential", "private_key"} {
+		if strings.Contains(normalized, marker) {
+			return true
+		}
+	}
+	return false
+}
+
+func redactHelmSetValue(value string) string {
+	key, _, found := strings.Cut(value, "=")
+	if found && isSensitiveHelmKey(key) {
+		return key + "=<redacted>"
+	}
+	return value
+}
+
+func formatHelmArgs(args []string) string {
+	safe := append([]string(nil), args...)
+	for i := 0; i < len(safe); i++ {
+		switch safe[i] {
+		case "--set", "--set-string", "--set-json":
+			if i+1 < len(safe) {
+				safe[i+1] = redactHelmSetValue(safe[i+1])
+				i++
+			}
+		default:
+			for _, prefix := range []string{"--set=", "--set-string=", "--set-json="} {
+				if strings.HasPrefix(safe[i], prefix) {
+					safe[i] = prefix + redactHelmSetValue(strings.TrimPrefix(safe[i], prefix))
+				}
+			}
+		}
+	}
+	return strings.Join(safe, " ")
+}
 
 func (s *setFlags) String() string { return strings.Join(*s, ",") }
 func (s *setFlags) Set(val string) error {
@@ -72,10 +117,31 @@ func escapeHelmSetValue(setArg string) string {
 }
 
 func main() {
+	// Helm runs this same binary as its post-renderer (see registry.go).
+	if runPostRenderIfRequested() {
+		return
+	}
 	config := parseFlags()
+
+	if config.Delete {
+		if err := uninstallChart(config); err != nil {
+			log.Fatalf("Uninstall failed: %v", err)
+		}
+		log.Printf("Successfully uninstalled agent chart (release: %s, namespace: %s)", config.ReleaseName, config.Namespace)
+		return
+	}
 
 	if err := validateConfig(config); err != nil {
 		log.Fatalf("Configuration error: %v", err)
+	}
+
+	if config.ValuesJSON != "" {
+		path, err := writeValuesJSON(config.ValuesJSON)
+		if err != nil {
+			log.Fatalf("Configuration error: %v", err)
+		}
+		defer os.Remove(path)
+		config.ValuesJSONFile = path
 	}
 
 	if err := installChart(config); err != nil {
@@ -102,6 +168,7 @@ func parseFlags() *Config {
 	flag.StringVar(&config.Namespace, "namespace", defaultNamespace, "Kubernetes namespace to install into")
 	flag.StringVar(&config.ChartsPath, "charts-path", defaultChartsPath, "Base path where charts are located")
 	flag.StringVar(&config.ValuesFile, "values", "", "Path to custom values file")
+	flag.StringVar(&config.ValuesJSON, "values-json", "", "Chart settings as a JSON values document, applied after -values and before --set")
 	flag.Var(&config.SetValues, "set", "Set values on command line (can be repeated: --set key=value --set key2=value2)")
 	flag.BoolVar(&config.DryRun, "dry-run", false, "Simulate installation without applying")
 	flag.BoolVar(&config.Wait, "wait", true, "Wait for resources to be ready")
@@ -112,6 +179,7 @@ func parseFlags() *Config {
 	flag.StringVar(&config.KubeContext, "context", "", "Kubernetes context to use")
 	flag.StringVar(&config.ServerAddr, "server-addr", "", "GraphQL server URL for agent registration audit (e.g. http://litmusportal-server-service.litmus-chaos.svc.cluster.local:9004/query)")
 	flag.StringVar(&config.ProjectID, "project-id", "litmus-project-1", "Project ID used when registering the agent in the audit store")
+	flag.BoolVar(&config.Delete, "delete", false, "Uninstall (helm uninstall) the chart instead of installing it")
 
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: install-agent [options]\n\n")
@@ -168,10 +236,28 @@ func validateConfig(config *Config) error {
 func installChart(config *Config) error {
 	chartPath := filepath.Join(config.ChartsPath, config.FolderName)
 
+	// Calculate total steps upfront for progress display.
+	totalSteps := 1 // helm run always executes
+	if config.CreateNS {
+		totalSteps++
+	}
+	if config.Upgrade {
+		totalSteps++
+	}
+	if config.Wait {
+		totalSteps++
+	}
+	step := 0
+	nextStep := func(msg string, args ...interface{}) {
+		step++
+		log.Printf("[%d/%d] "+msg, append([]interface{}{step, totalSteps}, args...)...)
+	}
+
 	// Pre-create namespace if requested, instead of relying on Helm's --create-namespace
 	// which fails with "already exists" error on upgrade --install when namespace was
 	// created outside of Helm
 	if config.CreateNS {
+		nextStep("Preparing namespace: %s", config.Namespace)
 		if err := ensureNamespace(config.Namespace, config.ReleaseName); err != nil {
 			log.Printf("Warning: failed to ensure namespace %s: %v", config.Namespace, err)
 		}
@@ -181,10 +267,15 @@ func installChart(config *Config) error {
 	// This prevents "invalid ownership metadata" errors when resources were left behind
 	// from a previous Helm release (e.g., cleanup purged the release but not the resources).
 	if config.Upgrade {
+		nextStep("Adopting existing chart resources")
 		if err := adoptExistingResources(config); err != nil {
 			log.Printf("Warning: failed to adopt existing resources: %v", err)
 		}
 	}
+
+	// Private registry: the target namespace needs the pull secret before any
+	// pod is admitted (no-op unless graphql set ACE_IMAGE_PULL_SECRET).
+	ensurePullSecret(config.Namespace)
 
 	// Build helm command
 	var args []string
@@ -200,13 +291,7 @@ func installChart(config *Config) error {
 
 	// Namespace is pre-created by ensureNamespace(), no need for --create-namespace
 
-	if config.ValuesFile != "" {
-		args = append(args, "-f", config.ValuesFile)
-	}
-
-	for _, setValue := range config.SetValues {
-		args = append(args, "--set", escapeHelmSetValue(setValue))
-	}
+	args = append(args, helmValuesArgs(config)...)
 
 	if config.DryRun {
 		args = append(args, "--dry-run")
@@ -229,11 +314,19 @@ func installChart(config *Config) error {
 		args = append(args, "--kube-context", config.KubeContext)
 	}
 
-	log.Printf("Executing: helm %s", strings.Join(args, " "))
+	// Resolve every image against the registry graphql configured (no-op
+	// unless ACE_IMAGE_REGISTRY / ACE_IMAGE_MIRROR_NAMESPACE are set).
+	postArgs, postEnv := postRendererArgs()
+	args = append(args, postArgs...)
+
+	nextStep("Running: helm %s", formatHelmArgs(args))
 
 	cmd := exec.Command("helm", args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
+	if postEnv != nil {
+		cmd.Env = append(os.Environ(), postEnv...)
+	}
 
 	if err := cmd.Run(); err != nil {
 		return err
@@ -242,7 +335,8 @@ func installChart(config *Config) error {
 	// If --wait was requested, use kubectl rollout status instead of Helm's
 	// built-in wait which suffers from client-go rate limiter bugs in v3.14
 	if config.Wait {
-		if err := waitForDeployments(config.Namespace, config.Timeout); err != nil {
+		nextStep("Waiting for deployments to be ready")
+		if err := waitForDeployments(config.Namespace, config.ReleaseName, config.Timeout); err != nil {
 			return fmt.Errorf("deployments not ready: %w", err)
 		}
 	}
@@ -250,31 +344,109 @@ func installChart(config *Config) error {
 	return nil
 }
 
-// waitForDeployments waits for all deployments in the namespace to be ready
-// using kubectl rollout status, which doesn't suffer from Helm's rate limiter bug.
-func waitForDeployments(namespace, timeout string) error {
+// releaseDeployments returns only Deployments owned by the Helm release, read
+// from the meta.helm.sh/release-name annotation Helm stamps on every object it
+// creates. Failure is explicit: falling back to every Deployment in a shared
+// namespace makes agent readiness depend on unrelated application workloads.
+func releaseDeployments(namespace, releaseName string) ([]string, error) {
+	if releaseName == "" {
+		return nil, fmt.Errorf("release name is required for readiness")
+	}
+	out, err := exec.Command("kubectl", "get", "deployments", "-n", namespace, "-o", "json").Output()
+	if err != nil {
+		return nil, fmt.Errorf("list deployments in namespace %s: %w", namespace, err)
+	}
+	deployments, err := releaseDeploymentNames(out, releaseName)
+	if err != nil {
+		return nil, err
+	}
+	if len(deployments) == 0 {
+		return nil, fmt.Errorf("release %s contains no Deployment to verify", releaseName)
+	}
+	return deployments, nil
+}
+
+// releaseDeploymentNames picks, from a `kubectl get deployments -o json` List,
+// the names whose meta.helm.sh/release-name annotation equals releaseName.
+func releaseDeploymentNames(listJSON []byte, releaseName string) ([]string, error) {
+	var list struct {
+		Items []struct {
+			Metadata struct {
+				Name        string            `json:"name"`
+				Annotations map[string]string `json:"annotations"`
+			} `json:"metadata"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(listJSON, &list); err != nil {
+		return nil, fmt.Errorf("parse deployment list: %w", err)
+	}
+	var names []string
+	for _, item := range list.Items {
+		if item.Metadata.Name != "" && item.Metadata.Annotations["meta.helm.sh/release-name"] == releaseName {
+			names = append(names, item.Metadata.Name)
+		}
+	}
+	sort.Strings(names)
+	return names, nil
+}
+
+// explainNotReady reports why a Deployment's pods are not running, so a failure
+// surfaces its actual cause instead of only a rollout timeout. Best-effort: any
+// lookup failure just yields an empty string.
+func explainNotReady(namespace, deployment string) string {
+	// Match pods by name prefix rather than by label selector: every chart here
+	// names its pods after the Deployment, and it avoids parsing an arbitrary
+	// selector out of the Deployment spec.
+	out, err := exec.Command("kubectl", "get", "pods", "-n", namespace,
+		"-o", `jsonpath={range .items[*]}{.metadata.name}{"|"}{range .status.containerStatuses[*]}{.name}{"="}{.state.waiting.reason}{":"}{.state.waiting.message}{";"}{end}{"\n"}{end}`).Output()
+	if err != nil {
+		return ""
+	}
+
+	var reasons []string
+	for _, line := range strings.Split(string(out), "\n") {
+		if !strings.HasPrefix(line, deployment+"-") {
+			continue
+		}
+		parts := strings.SplitN(line, "|", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		for _, container := range strings.Split(parts[1], ";") {
+			if container == "" || strings.Contains(container, "=:") {
+				continue
+			}
+			reasons = append(reasons, strings.TrimSpace(container))
+		}
+	}
+	if len(reasons) == 0 {
+		return ""
+	}
+	return strings.Join(reasons, " | ")
+}
+
+// waitForDeployments waits for the Deployments owned by releaseName to be ready,
+// using kubectl rollout status (Helm's own --wait hits a client-go rate limiter
+// bug in v3.14).
+//
+// Scoping to the release matters: the agent is installed into the *application's*
+// namespace, so waiting on every Deployment there made this step's success depend
+// on all ~15 unrelated application workloads. A single unhealthy application pod
+// failed the agent install, and an agent that was itself fine still waited on
+// them all.
+func waitForDeployments(namespace, releaseName, timeout string) error {
 	if timeout == "" {
 		timeout = "15m"
 	}
 
-	log.Printf("Waiting for all deployments in namespace %s to be ready (timeout: %s)...", namespace, timeout)
-
-	// Get list of deployments
-	listCmd := exec.Command("kubectl", "get", "deployments", "-n", namespace, "-o", "jsonpath={.items[*].metadata.name}")
-	out, err := listCmd.Output()
+	deployments, err := releaseDeployments(namespace, releaseName)
 	if err != nil {
-		return fmt.Errorf("failed to list deployments: %w", err)
+		return err
 	}
 
-	deployments := strings.Fields(string(out))
-	if len(deployments) == 0 {
-		log.Printf("No deployments found in namespace %s, skipping wait", namespace)
-		return nil
-	}
+	log.Printf("Waiting for %d deployment(s) of release %s: %s (timeout: %s)",
+		len(deployments), releaseName, strings.Join(deployments, ", "), timeout)
 
-	log.Printf("Found %d deployments: %s", len(deployments), strings.Join(deployments, ", "))
-
-	// Wait for each deployment
 	for _, dep := range deployments {
 		log.Printf("Waiting for deployment %s...", dep)
 		waitCmd := exec.Command("kubectl", "rollout", "status", "deployment/"+dep,
@@ -282,12 +454,15 @@ func waitForDeployments(namespace, timeout string) error {
 		waitCmd.Stdout = os.Stdout
 		waitCmd.Stderr = os.Stderr
 		if err := waitCmd.Run(); err != nil {
+			if why := explainNotReady(namespace, dep); why != "" {
+				return fmt.Errorf("deployment %s not ready: %s", dep, why)
+			}
 			return fmt.Errorf("deployment %s not ready: %w", dep, err)
 		}
 		log.Printf("Deployment %s is ready", dep)
 	}
 
-	log.Printf("All deployments in namespace %s are ready", namespace)
+	log.Printf("All deployments of release %s are ready", releaseName)
 	return nil
 }
 
@@ -350,16 +525,9 @@ func adoptExistingResources(config *Config) error {
 
 	// Build helm template command with the same args as the actual install
 	args := []string{"template", config.ReleaseName, chartPath, "--namespace", config.Namespace}
+	args = append(args, helmValuesArgs(config)...)
 
-	if config.ValuesFile != "" {
-		args = append(args, "-f", config.ValuesFile)
-	}
-
-	for _, setValue := range config.SetValues {
-		args = append(args, "--set", escapeHelmSetValue(setValue))
-	}
-
-	log.Printf("Discovering chart resources via: helm %s", strings.Join(args, " "))
+	log.Printf("Discovering chart resources via: helm %s", formatHelmArgs(args))
 
 	cmd := exec.Command("helm", args...)
 	out, err := cmd.Output()
@@ -374,12 +542,16 @@ func adoptExistingResources(config *Config) error {
 		return nil
 	}
 
-	log.Printf("Discovered %d resources from chart template", len(resources))
+	total := len(resources)
+	log.Printf("Discovered %d resources from chart template", total)
 
 	adopted := 0
-	for _, res := range resources {
+	for i, res := range resources {
 		if adoptResource(res, config.ReleaseName, config.Namespace) {
 			adopted++
+		}
+		if n := i + 1; n%10 == 0 || n == total {
+			log.Printf("  [%d/%d] Resources checked", n, total)
 		}
 	}
 
@@ -558,12 +730,6 @@ func callRegisterAgent(serverAddr, projectID, name, version, namespace, helmRele
 		}
 	}`
 
-	// Use IMAGE_REGISTRY env var if set, fall back to docker.io
-	registry := os.Getenv("IMAGE_REGISTRY")
-	if registry == "" {
-		registry = "docker.io"
-	}
-
 	input := map[string]interface{}{
 		"projectID":       projectID,
 		"name":            name,
@@ -573,7 +739,7 @@ func callRegisterAgent(serverAddr, projectID, name, version, namespace, helmRele
 		"namespace":       namespace,
 		"helmReleaseName": helmReleaseName,
 		"containerImage": map[string]interface{}{
-			"registry":   registry,
+			"registry":   "docker.io",
 			"repository": "agentcert/agentcert-flash-agent",
 			"tag":        version,
 		},
@@ -649,10 +815,18 @@ func helmUpgradeWithAgentID(config *Config, agentID string) error {
 		args = append(args, "--kube-context", config.KubeContext)
 	}
 
-	log.Printf("Injecting agentId into helm release: helm %s", strings.Join(args, " "))
+	// Same post-renderer as the install, or this upgrade would re-render the
+	// chart with public image names.
+	postArgs, postEnv := postRendererArgs()
+	args = append(args, postArgs...)
+
+	log.Printf("Injecting agentId into helm release: helm %s", formatHelmArgs(args))
 	cmd := exec.Command("helm", args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
+	if postEnv != nil {
+		cmd.Env = append(os.Environ(), postEnv...)
+	}
 	if err := cmd.Run(); err != nil {
 		return err
 	}
@@ -660,7 +834,7 @@ func helmUpgradeWithAgentID(config *Config, agentID string) error {
 	// Wait for the deployment rollout so the pod with AGENT_ID is running
 	// before the workflow proceeds to chaos fault steps.
 	log.Printf("Waiting for deployment rollout after agentId injection...")
-	return waitForDeployments(config.Namespace, config.Timeout)
+	return waitForDeployments(config.Namespace, config.ReleaseName, config.Timeout)
 }
 
 // readChartField reads a top-level string field (e.g. "name" or "version")
@@ -679,6 +853,32 @@ func readChartField(config *Config, field string) string {
 		}
 	}
 	return ""
+}
+
+// uninstallChart runs helm uninstall to remove the agent release.
+// It is tolerant of a release that does not exist.
+func uninstallChart(config *Config) error {
+	releaseName := config.ReleaseName
+	if releaseName == "" {
+		releaseName = config.FolderName
+	}
+
+	args := []string{"uninstall", releaseName, "--namespace", config.Namespace, "--ignore-not-found"}
+	if config.Timeout != "" {
+		args = append(args, "--timeout", config.Timeout)
+	}
+	if config.KubeConfig != "" {
+		args = append(args, "--kubeconfig", config.KubeConfig)
+	}
+	if config.KubeContext != "" {
+		args = append(args, "--kube-context", config.KubeContext)
+	}
+
+	log.Printf("Executing: helm %s", formatHelmArgs(args))
+	cmd := exec.Command("helm", args...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
 }
 
 // ListAvailableCharts lists all available charts in the charts path

@@ -14,9 +14,13 @@ spec:
         spec:
           serviceAccountName: {{ .Values.agent.name }}-sa
           restartPolicy: {{ .Values.cronjob.restartPolicy }}
+          {{- with .Values.imagePullSecrets }}
+          imagePullSecrets:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           containers:
           - name: agent
-            image: "{{ .Values.agent.containerImage.registry }}/{{ .Values.agent.containerImage.repository }}:{{ .Values.agent.containerImage.tag }}"
+            image: "{{ with .Values.agent.containerImage.registry }}{{ . }}/{{ end }}{{ .Values.agent.containerImage.repository }}:{{ .Values.agent.containerImage.tag }}"
             imagePullPolicy: Always
 
             resources:

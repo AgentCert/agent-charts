@@ -1,0 +1,51 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.agent.name }}-metadata
+  labels:
+    app.kubernetes.io/name: {{ .Values.agent.name }}
+    agentcert.io/managed: "true"
+    agentcert.io/version: {{ .Values.agent.version | quote }}
+  annotations:
+    agentcert.io/vendor: {{ .Values.agent.vendor | quote }}
+data:
+  # Agent Identity (used by sidecar for tracing)
+  AGENT_NAME: {{ .Values.agent.name | quote }}
+  AGENT_ID: {{ .Values.agent.id | default "" | quote }}
+  AGENT_ROLE: {{ .Values.agent.role | default "observer" | quote }}
+  AGENT_VERSION: {{ .Values.agent.version | quote }}
+  
+  # Experiment Correlation (links Langfuse traces to ChaosCenter experiments)
+  # NOTIFY_ID = ChaosCenter's experiment_run_id (used as Langfuse trace_id)
+  #             Falls back to workflow name if ChaosCenter doesn't provide one
+  # WORKFLOW_NAME = Human-readable experiment name (for display/search)
+  # WORKFLOW_UID = K8s-generated UUID (for unique identification if needed)
+  NOTIFY_ID: {{ .Values.agent.config.NOTIFY_ID | default .Values.agent.notifyId | default "" | quote }}
+  WORKFLOW_NAME: {{ .Values.agent.config.WORKFLOW_NAME | default .Values.agent.notifyId | default "" | quote }}
+  WORKFLOW_UID: {{ .Values.agent.workflowUid | default "" | quote }}
+
+  # LLM Configuration
+  # When sidecar is enabled, route through sidecar for metadata injection
+  {{- if .Values.sidecar.enabled }}
+  OPENAI_BASE_URL: "http://localhost:{{ .Values.sidecar.port }}/v1"
+  {{- else }}
+  OPENAI_BASE_URL: {{ .Values.agent.config.OPENAI_BASE_URL | quote }}
+  {{- end }}
+  MODEL_ALIAS: {{ .Values.agent.config.MODEL_ALIAS | quote }}
+  {{- if .Values.agent.config.AZURE_API_VERSION }}
+  AZURE_API_VERSION: {{ .Values.agent.config.AZURE_API_VERSION | quote }}
+  {{- end }}
+
+  # MCP Configuration
+  MCP_URLS: {{ .Values.agent.config.MCP_URLS | quote }}
+  {{- if .Values.agent.config.MCP_TIMEOUT }}
+  MCP_TIMEOUT: {{ .Values.agent.config.MCP_TIMEOUT | quote }}
+  {{- end }}
+
+  # Scan Configuration
+  {{- if .Values.agent.config.SCAN_INTERVAL }}
+  SCAN_INTERVAL: {{ .Values.agent.config.SCAN_INTERVAL | quote }}
+  {{- end }}
+  {{- if .Values.agent.config.SCAN_QUERY }}
+  SCAN_QUERY: {{ .Values.agent.config.SCAN_QUERY | quote }}
+  {{- end }}

@@ -9,19 +9,30 @@ spec:
       app: {{ .Values.agent.name }}
   template:
     metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
       labels:
         app: {{ .Values.agent.name }}
     spec:
       serviceAccountName: {{ .Values.agent.name }}-sa
+      {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
-        - name: jfrog-registry
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       containers:
         - name: agent
-          image: "{{- if .Values.agent.containerImage.registry }}{{ .Values.agent.containerImage.registry }}/{{- end }}{{ .Values.agent.containerImage.repository }}:{{ .Values.agent.containerImage.tag | default "latest" }}"
+          image: "{{ with .Values.agent.containerImage.registry }}{{ . }}/{{ end }}{{ .Values.agent.containerImage.repository }}:{{ .Values.agent.containerImage.tag }}"
           imagePullPolicy: {{ .Values.agent.containerImage.pullPolicy | default "Always" }}
 
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
+
+          # Carries every key the ConfigMap holds, including the ones the
+          # control plane injected that this chart has no explicit entry for.
+          # The explicit env: list below still wins for the keys it names.
+          envFrom:
+            - configMapRef:
+                name: {{ .Values.agent.name }}-metadata
 
           env:
             # Agent identity
@@ -87,7 +98,7 @@ spec:
 {{- if .Values.sidecar.enabled }}
         # ── agent-sidecar: transparent metadata-injection proxy ──────
         - name: {{ .Values.sidecar.name }}
-          image: "{{- if .Values.sidecar.image.registry }}{{ .Values.sidecar.image.registry }}/{{- end }}{{ .Values.sidecar.image.repository }}:{{ .Values.sidecar.image.tag | default "latest" }}"
+          image: "{{ with .Values.sidecar.image.registry }}{{ . }}/{{ end }}{{ .Values.sidecar.image.repository }}:{{ .Values.sidecar.image.tag }}"
           imagePullPolicy: {{ .Values.sidecar.image.pullPolicy | default "Always" }}
           ports:
             - containerPort: {{ .Values.sidecar.port }}
