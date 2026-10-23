@@ -2,8 +2,11 @@
 # Build and push Helm chart installer for agents
 
 # Anchored to this Makefile, not to the caller's working directory, so the
-# targets behave the same however make is invoked.
-ACE_REPO_ROOT := $(abspath $(dir $(lastword $(MAKEFILE_LIST)))/../..)
+# targets behave the same however make is invoked (cd, make -C or make -f).
+# ACE_REPO_ROOT may be overridden from the environment or the command line.
+ACE_MAKEFILE := $(abspath $(lastword $(MAKEFILE_LIST)))
+ACE_COMPONENT_DIR := $(patsubst %/,%,$(dir $(ACE_MAKEFILE)))
+ACE_REPO_ROOT ?= $(abspath $(ACE_COMPONENT_DIR)/../..)
 ACE_REGISTRY_LIB := $(ACE_REPO_ROOT)/scripts/lib/registry.sh
 ACE_ENV_FILE ?= $(ACE_REPO_ROOT)/.env
 
@@ -26,14 +29,19 @@ FOLDER ?= flash-agent
 KUBECONFIG ?= $(HOME)/.kube/config
 
 # Build context - parent directory (agent-charts root)
-BUILD_CONTEXT = ..
+BUILD_CONTEXT = $(abspath $(ACE_COMPONENT_DIR)/..)
 
-# Run a command with registry.sh sourced and the env file loaded. The caller's
-# IMAGE_REGISTRY is deliberately left intact: registry_load reads the
+# Run a build command with registry.sh sourced and the env file loaded. The
+# caller's IMAGE_REGISTRY is deliberately left intact: registry_load reads the
 # environment first, so `IMAGE_REGISTRY= make build` forces the public path.
-ACE_WITH_REGISTRY = bash -c 'source "$$1"; registry_load "$$2" || exit; shift 2; "$$@"' _ "$(ACE_REGISTRY_LIB)" "$(ACE_ENV_FILE)"
-# Tag the public name to its resolved destination and push that.
-ACE_PUSH = bash -c 'source "$$1"; registry_load "$$2" || exit; dst="$$(registry_ref "$$3")" || exit; [ "$$dst" = "$$3" ] || docker tag "$$3" "$$dst" || exit; echo "Pushing Docker image: $$dst"; docker push "$$dst"' _ "$(ACE_REGISTRY_LIB)" "$(ACE_ENV_FILE)"
+# With IMAGE_REGISTRY set the Dockerfile's base images resolve to that registry,
+# so log in first (no-op without credentials; a failure only warns, as a prior
+# `docker login` may still be valid).
+ACE_WITH_REGISTRY = bash -c 'source "$$1"; registry_load "$$2" || exit; [ -z "$$IMAGE_REGISTRY" ] || registry_login >/dev/null || echo "WARN: login to $$(registry_host) failed; base-image pulls may get 401" >&2; shift 2; "$$@"' _ "$(ACE_REGISTRY_LIB)" "$(ACE_ENV_FILE)"
+# Tag the public name to its resolved destination and push that. ACE_IMAGE_TAG
+# is cleared so IMAGE_TAG is what gets pushed: release tags are immutable and
+# belong to scripts/build-and-push.sh --push --tag, which guards them.
+ACE_PUSH = bash -c 'source "$$1"; registry_load "$$2" || exit; ACE_IMAGE_TAG=; dst="$$(registry_ref "$$3")" || exit; [ "$$dst" = "$$3" ] || docker tag "$$3" "$$dst" || exit; echo "Pushing Docker image: $$dst"; docker push "$$dst"' _ "$(ACE_REGISTRY_LIB)" "$(ACE_ENV_FILE)"
 # Print where a public name actually resolves to under the current .env.
 ACE_RESOLVE = bash -c 'source "$$1"; registry_load "$$2" >/dev/null || exit; echo "Resolved:  $$(registry_ref "$$3")"' _ "$(ACE_REGISTRY_LIB)" "$(ACE_ENV_FILE)"
 
@@ -55,12 +63,12 @@ help: ## Show this help message
 .PHONY: build
 build: require-ace-lib ## Build the Docker image
 	@echo "Building Docker image: $(IMAGE)"
-	$(ACE_WITH_REGISTRY) docker_build_resolved Dockerfile -t "$(IMAGE)" "$(BUILD_CONTEXT)"
+	$(ACE_WITH_REGISTRY) docker_build_resolved "$(ACE_COMPONENT_DIR)/Dockerfile" -t "$(IMAGE)" "$(BUILD_CONTEXT)"
 
 .PHONY: build-no-cache
 build-no-cache: require-ace-lib ## Build the Docker image without cache
 	@echo "Building Docker image (no cache): $(IMAGE)"
-	$(ACE_WITH_REGISTRY) docker_build_resolved Dockerfile --no-cache -t "$(IMAGE)" "$(BUILD_CONTEXT)"
+	$(ACE_WITH_REGISTRY) docker_build_resolved "$(ACE_COMPONENT_DIR)/Dockerfile" --no-cache -t "$(IMAGE)" "$(BUILD_CONTEXT)"
 
 .PHONY: push
 push: require-ace-lib ## Push the Docker image to the resolved registry
@@ -68,7 +76,7 @@ push: require-ace-lib ## Push the Docker image to the resolved registry
 
 .PHONY: build-push
 build-push: build ## Build successfully before publishing, including under make -j
-	$(MAKE) push
+	$(MAKE) -f "$(ACE_MAKEFILE)" push
 
 .PHONY: run
 run: ## Run the container with help
@@ -115,12 +123,12 @@ clean: ## Remove local Docker image
 .PHONY: test
 test: ## Run tests
 	@echo "Running Go tests..."
-	go test -v ./...
+	cd "$(ACE_COMPONENT_DIR)" && go test -v ./...
 
 .PHONY: lint
 lint: ## Run linter
 	@echo "Running Go linter..."
-	golangci-lint run ./...
+	cd "$(ACE_COMPONENT_DIR)" && golangci-lint run ./...
 
 .PHONY: version
 version: ## Show current version configuration
